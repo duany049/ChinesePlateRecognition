@@ -7,6 +7,8 @@ import cv2
 import os
 import utils
 from constant import *
+from utils import *
+import random
 
 
 class PlateGenerator:
@@ -17,15 +19,34 @@ class PlateGenerator:
         self.smudginess = cv2.imread('./data/bg/smudginess.jpg')
         self.bg = cv2.resize(cv2.imread('./data/bg/template.bmp'), (226, 70))
 
-    def _add_smudginess(self, img, sum):
-        # 看作用
-        pass
+    def _add_smudginess(self, img, smudginess):
+        """
+        :param img: src img
+        :param smudginess: the src of smudginess
+        :return: img that has smudginess
+        """
+        src_h, src_w = img.shape[:2]
+        row_start = random_range(smudginess.shape[0] - src_h)
+        col_start = random_range(smudginess.shape[1] - src_w)
+        adder = smudginess[row_start:row_start + src_h, col_start:col_start + src_w]
+        adder = cv2.resize(adder, (src_w, src_h))
+        alpha = random.random() * 0.5
+        beta = 1 - alpha
+        fused_img = cv2.addWeighted(img, alpha, adder, beta, 0.0)
+        return fused_img
 
     def _rot_img(self, img, angel, shape, max_angel):
         pass
 
-    def _random_rot(self):
-        pass
+    def _random_rot(self, img, scale, shape):
+        pts1 = np.float32([[0, 0], [0, shape[0]], [shape[1], 0], [shape[1], shape[0]]])
+        pts2 = np.float32([[random_range(scale), random_range(scale)],
+                           [random_range(scale), shape[0] - random_range(scale)],
+                           [shape[1] - random_range(scale), 0],
+                           [shape[1] - random_range(scale), shape[0] - random_range(scale)]])
+        matrix_transform = cv2.getPerspectiveTransform(pts1, pts2)
+        warp_img = cv2.warpPerspective(img, matrix_transform, shape)
+        return warp_img
 
     def _random_bg(self):
         pass
@@ -33,17 +54,32 @@ class PlateGenerator:
     def _gen_char(self):
         pass
 
-    def _add_gauss(self):
-        pass
+    def _add_gauss(self, img, level):
+        return cv2.blur(img, (level * 2 + 1, level * 2 + 1))
 
-    def _add_noise(self):
-        pass
+    def _add_noise_single_noise(self, img):
 
-    def _draw_chinese(self):
-        pass
 
-    def _draw_other_char(self):
-        pass
+    def _add_noise(self, img):
+        img[:, :, 0] = self._add_noise_single_noise(img[:, :, 0])
+        img[:, :, 1] = self._add_noise_single_noise(img[:, :, 1])
+        img[:, :, 2] = self._add_noise_single_noise(img[:, :, 2])
+        return img
+
+    def _draw_chinese(self, char):
+        img = Image.new("RGB", (45, 70), (255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        draw.text((0, 3), char, (0, 0, 0), font=self.font_ch)
+        img = img.resize((23, 70))
+        img_np = np.asarray(img)
+        return img_np
+
+    def _draw_other_char(self, char):
+        img = Image.new('RGB', (23, 70), (255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        draw.text((0, 2), char, (0, 0, 0), font=self.font_en)
+        img_np = np.asarray(img)
+        return img_np
 
     def _draw(self, plate_content):
         first_char_end = start_offset + char_width
@@ -80,7 +116,9 @@ class PlateGenerator:
         :return: plate img
         """
         content_img = self._draw(plate_content)
+        plate_img = cv2.bitwise_not(content_img)
         plate_img = cv2.bitwise_or(content_img, self.bg)
+        # self._rot_img()
         plate_img = self._random_rot(plate_img)
         plate_img = self._add_smudginess(plate_img)
         # random_envirment
