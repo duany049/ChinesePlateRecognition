@@ -10,7 +10,6 @@ from constant import *
 from utils import *
 import random
 
-
 class PlateGenerator:
     def __init__(self, font_ch_path, font_en_path, bg_dir):
         self.font_ch = ImageFont.truetype(font_ch_path, 43, 0)
@@ -119,6 +118,7 @@ class PlateGenerator:
         plate_img = cv2.bitwise_not(content_img)
         plate_img = cv2.bitwise_or(content_img, self.bg)
         # self._rot_img()
+
         plate_img = self._random_rot(plate_img)
         plate_img = self._add_smudginess(plate_img)
         # random_envirment
