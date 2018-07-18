@@ -1,15 +1,15 @@
 # coding=utf-8
-from lib.common.config import cfg
+from common.config import cfg
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.contrib.slim import arg_scope
 import numpy as np
-from lib.utils.visualization import draw_bounding_boxes
-from lib.layer_utils.snippets import generate_anchors_pre, generate_anchors_pre_tf
-from lib.layer_utils.proposal_layer import proposal_layer, proposal_layer_tf
-from lib.layer_utils.proposal_top_layer import proposal_top_layer, proposal_top_layer_tf
-from lib.layer_utils.anchor_target_layer import anchor_target_layer
-from lib.layer_utils.proposal_target_layer import proposal_target_layer
+from utils.visualization import draw_bounding_boxes
+from layer_utils.snippets import generate_anchors_pre, generate_anchors_pre_tf
+from layer_utils.proposal_layer import proposal_layer, proposal_layer_tf
+from layer_utils.proposal_top_layer import proposal_top_layer, proposal_top_layer_tf
+from layer_utils.anchor_target_layer import anchor_target_layer
+from layer_utils.proposal_target_layer import proposal_target_layer
 
 
 class Network(object):
@@ -319,7 +319,7 @@ class Network(object):
     def _add_losses(self, sigma_rpn=3.0):
         with tf.variable_scope('LOSS_' + self._tag) as scope:
             # RPN, class loss
-            rpn_cls_score = tf.reshape(self._predictions['rpn_cls_score_reshape'], [-1, 2])
+            rpn_cls_score = tf.reshape(self._predict_layers['rpn_cls_score_reshape'], [-1, 2])
             rpn_label = tf.reshape(self._anchor_targets['rpn_labels'], [-1])
             rpn_select = tf.where(tf.not_equal(rpn_label, -1))
             rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_select), [-1, 2])
@@ -328,7 +328,7 @@ class Network(object):
                 tf.nn.sparse_softmax_cross_entropy_with_logits(logits=rpn_cls_score, labels=rpn_label))
 
             # RPN, bbox loss
-            rpn_bbox_pred = self._predictions['rpn_bbox_pred']
+            rpn_bbox_pred = self._predict_layers['rpn_bbox_pred']
             rpn_bbox_targets = self._anchor_targets['rpn_bbox_targets']
             rpn_bbox_inside_weights = self._anchor_targets['rpn_bbox_inside_weights']
             rpn_bbox_outside_weights = self._anchor_targets['rpn_bbox_outside_weights']
@@ -336,13 +336,13 @@ class Network(object):
                                                 rpn_bbox_outside_weights, sigma=sigma_rpn, dim=[1, 2, 3])
 
             # RCNN, class loss
-            cls_score = self._predictions["cls_score"]
+            cls_score = self._predict_layers["cls_score"]
             label = tf.reshape(self._proposal_targets["labels"], [-1])
             cross_entropy = tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label))
 
             # RCNN, bbox loss
-            bbox_pred = self._predictions['bbox_pred']
+            bbox_pred = self._predict_layers['bbox_pred']
             bbox_targets = self._proposal_targets['bbox_targets']
             bbox_inside_weights = self._proposal_targets['bbox_inside_weights']
             bbox_outside_weights = self._proposal_targets['bbox_outside_weights']
@@ -468,7 +468,7 @@ class Network(object):
 
         assert tag != None
 
-        weights_regularizer = tf.contrib.layer.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY)
+        weights_regularizer = tf.contrib.layers.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY)
         if cfg.TRAIN.BIAS_DECAY:
             biases_regularizer = weights_regularizer
         else:
@@ -525,10 +525,10 @@ class Network(object):
     def test_image(self, sess, image, im_info):
         feed_dict = {self._image: image,
                      self._im_info: im_info}
-        cls_score, cls_prob, bbox_pred, rois = sess.run([self._predictions["cls_score"],
-                                                         self._predictions['cls_prob'],
-                                                         self._predictions['bbox_pred'],
-                                                         self._predictions['rois']],
+        cls_score, cls_prob, bbox_pred, rois = sess.run([self._predict_layers["cls_score"],
+                                                         self._predict_layers['cls_prob'],
+                                                         self._predict_layers['bbox_pred'],
+                                                         self._predict_layers['rois']],
                                                         feed_dict=feed_dict)
         return cls_score, cls_prob, bbox_pred, rois
 
