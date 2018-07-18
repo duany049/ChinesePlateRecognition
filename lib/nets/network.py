@@ -1,24 +1,27 @@
 # coding=utf-8
-from common.config import cfg
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
+from tensorflow.contrib.slim import losses
 from tensorflow.contrib.slim import arg_scope
+
 import numpy as np
-from utils.visualization import draw_bounding_boxes
+
 from layer_utils.snippets import generate_anchors_pre, generate_anchors_pre_tf
 from layer_utils.proposal_layer import proposal_layer, proposal_layer_tf
 from layer_utils.proposal_top_layer import proposal_top_layer, proposal_top_layer_tf
 from layer_utils.anchor_target_layer import anchor_target_layer
 from layer_utils.proposal_target_layer import proposal_target_layer
+from utils.visualization import draw_bounding_boxes
+
+from model.config import cfg
 
 
 class Network(object):
-    """
-    所有网络结构的父类,实现了rpn和fast rcnn公共接口
-    """
-
     def __init__(self):
-        # 预测结果层
         self._predict_layers = {}
         self._losses = {}
         self._anchor_targets = {}
@@ -30,31 +33,6 @@ class Network(object):
         self._train_summaries = []
         self._event_summaries = {}
         self._variables_to_transform = {}
-
-    def _image_feature_extract(self, is_training, reuse=None):
-        """
-        定义图片特征提取网络.
-        :param is_training:
-        :param reuse:
-        :return:
-        """
-        raise NotImplementedError
-
-    def _full_connect_layer(self, pool5, is_training, reuse=None):
-        """
-        定义全连接网络.
-        :param pool5:
-        :param is_training:
-        :param reuse:
-        :return:
-        """
-        raise NotImplementedError
-
-    def get_variables_to_restore(self, variables, var_keep_dic):
-        raise NotImplementedError
-
-    def transform_variables(self, sess, pretrained_model):
-        raise NotImplementedError
 
     def _add_gt_image(self):
         # add back mean
@@ -70,6 +48,7 @@ class Network(object):
         image = tf.py_func(draw_bounding_boxes,
                            [self._gt_image, self._gt_boxes, self._im_info],
                            tf.float32, name="gt_boxes")
+
         return tf.summary.image('GROUND_TRUTH', image)
 
     def _add_act_summary(self, tensor):
@@ -180,58 +159,6 @@ class Network(object):
 
     def _anchor_target_layer(self, rpn_cls_score, name):
         with tf.variable_scope(name) as scope:
-            # tf.py_func把输入的tensor当做ndarray来使用，大大增加了灵活性，而且可以对占位符的shape和值进行读取判断操作
-            rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = tf.py_func(
-                anchor_target_layer,
-                [rpn_cls_score, self._gt_boxes, self._im_info, self._feat_stride, self._anchors, self._num_anchors],
-                [tf.float32, tf.float32, tf.float32, tf.float32],
-                name="anchor_target")
-
-            rpn_labels.set_shape([1, 1, None, None])
-            rpn_bbox_targets.set_shape([1, None, None, self._num_anchors * 4])
-            rpn_bbox_inside_weights.set_shape([1, None, None, self._num_anchors * 4])
-            rpn_bbox_outside_weights.set_shape([1, None, None, self._num_anchors * 4])
-
-            rpn_labels = tf.to_int32(rpn_labels, name="to_int32")
-            self._anchor_targets['rpn_labels'] = rpn_labels
-            self._anchor_targets['rpn_bbox_targets'] = rpn_bbox_targets
-            self._anchor_targets['rpn_bbox_inside_weights'] = rpn_bbox_inside_weights
-            self._anchor_targets['rpn_bbox_outside_weights'] = rpn_bbox_outside_weights
-
-            self._score_summaries.update(self._anchor_targets)
-
-        return rpn_labels
-
-    def _proposal_target_layer(self, rois, roi_scores, name):
-        with tf.variable_scope(name) as scope:
-            rois, roi_scores, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights = tf.py_func(
-                proposal_target_layer,
-                [rois, roi_scores, self._gt_boxes, self._num_classes],
-                [tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32],
-                name="proposal_target")
-
-            rois.set_shape([cfg.TRAIN.BATCH_SIZE, 5])
-            roi_scores.set_shape([cfg.TRAIN.BATCH_SIZE])
-            labels.set_shape([cfg.TRAIN.BATCH_SIZE, 1])
-            bbox_targets.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
-            bbox_inside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
-            bbox_outside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
-
-            self._proposal_targets['rois'] = rois
-            self._proposal_targets['labels'] = tf.to_int32(labels, name="to_int32")
-            self._proposal_targets['bbox_targets'] = bbox_targets
-            self._proposal_targets['bbox_inside_weights'] = bbox_inside_weights
-            self._proposal_targets['bbox_outside_weights'] = bbox_outside_weights
-
-            self._score_summaries.update(self._proposal_targets)
-
-            return rois, roi_scores
-
-    def _dropout_layer(self, bottom, name, ratio=0.5):
-        return tf.nn.dropout(bottom, ratio, name=name)
-
-    def _anchor_target_layer(self, rpn_cls_score, name):
-        with tf.variable_scope(name) as scope:
             rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = tf.py_func(
                 anchor_target_layer,
                 [rpn_cls_score, self._gt_boxes, self._im_info, self._feat_stride, self._anchors, self._num_anchors],
@@ -300,6 +227,37 @@ class Network(object):
             anchor_length.set_shape([])
             self._anchors = anchors
             self._anchor_length = anchor_length
+
+    def _build_network(self, is_training=True):
+        # 是否使用truncated_normal_initializer初始化权重
+        if cfg.TRAIN.TRUNCATED:
+            initializer = tf.truncated_normal_initializer(mean=0.0, stddev=0.01)
+            initializer_bbox = tf.truncated_normal_initializer(mean=0.0, stddev=0.001)
+        else:
+            initializer = tf.random_normal_initializer(mean=0.0, stddev=0.01)
+            initializer_bbox = tf.random_normal_initializer(mean=0.0, stddev=0.001)
+
+        net_conv = self._image_to_head(is_training)
+        with tf.variable_scope(self._scope, self._scope):
+            # build the anchors for the image
+            self._anchor_component()
+            # region proposal network
+            rois = self._region_proposal(net_conv, is_training, initializer)
+            # region of interest pooling
+            if cfg.POOLING_MODE == 'crop':
+                pool5 = self._crop_pool_layer(net_conv, rois, "pool5")
+            else:
+                raise NotImplementedError
+
+        fc7 = self._head_to_tail(pool5, is_training)
+        with tf.variable_scope(self._scope, self._scope):
+            # region classification
+            cls_prob, bbox_pred = self._region_classification(fc7, is_training,
+                                                              initializer, initializer_bbox)
+
+        self._score_summaries.update(self._predict_layers)
+
+        return rois, cls_prob, bbox_pred
 
     def _smooth_l1_loss(self, bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights, sigma=1.0, dim=[1]):
         sigma_2 = sigma ** 2
@@ -418,34 +376,24 @@ class Network(object):
 
         return cls_prob, bbox_pred
 
-    def _build_network(self, is_training=True):
-        # 是否使用truncated_normal_initializer初始化权重
-        if cfg.TRAIN.TRUNCATED:
-            initializer = tf.truncated_normal_initializer(mean=0.0, stddev=0.01)
-            initializer_bbox = tf.truncated_normal_initializer(mean=0.0, stddev=0.001)
-        else:
-            initializer = tf.random_normal_initializer(mean=0.0, stddev=0.01)
-            initializer_bbox = tf.random_normal_initializer(mean=0.0, stddev=0.01)
+    def _image_feature_extract(self, is_training, reuse=None):
+        """
+        定义图片特征提取网络.
+        :param is_training:
+        :param reuse:
+        :return:
+        """
+        raise NotImplementedError
 
-        conv_net = self._image_feature_extract(is_training)
-        with tf.variable_scope(self._scope, self._scope):
-            # generate anchor
-            self._anchor_component()
-            # region proposal network
-            rois = self._region_proposal(conv_net, is_training, initializer)
-            # region of interest pooling
-            if cfg.POOLING_MODE == 'crop':
-                pool5 = self._crop_pool_layer(conv_net, rois, "pool5")
-            else:
-                raise NotImplementedError
-
-        fc7 = self._full_connect_layer(pool5, is_training)
-        with tf.variable_scope(self._scope, self._scope):
-            # region and classification
-            cls_prob, bbox_pred = self._region_classification(fc7, is_training, initializer, initializer_bbox)
-
-        self._score_summaries.update(self._predict_layers)
-        return rois, cls_prob, bbox_pred
+    def _full_connect_layer(self, pool5, is_training, reuse=None):
+        """
+        定义全连接网络.
+        :param pool5:
+        :param is_training:
+        :param reuse:
+        :return:
+        """
+        raise NotImplementedError
 
     def create_architecture(self, mode, num_classes, tag=None,
                             anchor_scales=(8, 16, 32), anchor_ratios=(0.5, 1, 2)):
@@ -455,12 +403,13 @@ class Network(object):
         self._tag = tag
 
         self._num_classes = num_classes
-        # TRAIN or TEST
         self._mode = mode
         self._anchor_scales = anchor_scales
         self._num_scales = len(anchor_scales)
+
         self._anchor_ratios = anchor_ratios
         self._num_ratios = len(anchor_ratios)
+
         self._num_anchors = self._num_scales * self._num_ratios
 
         training = mode == 'TRAIN'
@@ -468,13 +417,14 @@ class Network(object):
 
         assert tag != None
 
+        # handle most of the regularizers here
         weights_regularizer = tf.contrib.layers.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY)
         if cfg.TRAIN.BIAS_DECAY:
             biases_regularizer = weights_regularizer
         else:
             biases_regularizer = tf.no_regularizer
 
-        # 定义当前作用域下这些网络层的参数
+        # 定义当前作用域下这些网络层的参数，选择尽多类型的layer
         with arg_scope([slim.conv2d, slim.conv2d_in_plane, \
                         slim.conv2d_transpose, slim.separable_conv2d, slim.fully_connected],
                        weights_regularizer=weights_regularizer,
@@ -497,7 +447,7 @@ class Network(object):
             layers_to_output.update(self._losses)
 
             val_summaries = []
-            with tf.device("/gpu:0"):
+            with tf.device("/cpu:0"):
                 val_summaries.append(self._add_gt_image_summary())
                 for key, var in self._event_summaries.items():
                     val_summaries.append(tf.summary.scalar(key, var))
@@ -515,16 +465,24 @@ class Network(object):
 
         return layers_to_output
 
+    def get_variables_to_restore(self, variables, var_keep_dic):
+        raise NotImplementedError
+
+    def transform_variables(self, sess, pretrained_model):
+        raise NotImplementedError
+
     # Extract the head feature maps, for example for vgg16 it is conv5_3
     # only useful during testing mode
     def extract_head(self, sess, image):
         feed_dict = {self._image: image}
-        feat = sess.run(self._layers["head"], feed_dict=feed_dict)
+        feat = sess.run(self._child_layers["head"], feed_dict=feed_dict)
         return feat
 
+    # only useful during testing mode
     def test_image(self, sess, image, im_info):
         feed_dict = {self._image: image,
                      self._im_info: im_info}
+
         cls_score, cls_prob, bbox_pred, rois = sess.run([self._predict_layers["cls_score"],
                                                          self._predict_layers['cls_prob'],
                                                          self._predict_layers['bbox_pred'],
