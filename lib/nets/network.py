@@ -237,7 +237,7 @@ class Network(object):
             initializer = tf.random_normal_initializer(mean=0.0, stddev=0.01)
             initializer_bbox = tf.random_normal_initializer(mean=0.0, stddev=0.001)
 
-        net_conv = self._image_to_head(is_training)
+        net_conv = self._image_feature_extract(is_training)
         with tf.variable_scope(self._scope, self._scope):
             # build the anchors for the image
             self._anchor_component()
@@ -249,7 +249,7 @@ class Network(object):
             else:
                 raise NotImplementedError
 
-        fc7 = self._head_to_tail(pool5, is_training)
+        fc7 = self._full_connect_layer(pool5, is_training)
         with tf.variable_scope(self._scope, self._scope):
             # region classification
             cls_prob, bbox_pred = self._region_classification(fc7, is_training,
