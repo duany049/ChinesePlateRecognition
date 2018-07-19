@@ -9,6 +9,7 @@ import argparse
 import random
 import time
 import shutil
+from model.config import cfg
 
 
 def _generate_format_imgs(format_src_imgs, images_src_dir, images_out_dir):
@@ -129,7 +130,7 @@ if __name__ == "__main__":
     start_time = time.time()
     random.shuffle(imgs_name_list)
     print('shuffle imgs use time: ', time.time() - start_time)
-    train_ratio = 0.8
+    train_ratio = cfg.MY.TRAIN_RATIO
     train_num = int(len(imgs_name_list) * train_ratio)
     train_imgs = imgs_name_list[:train_num]
     test_imgs = imgs_name_list[train_num:]
