@@ -1,0 +1,5 @@
+目录及文件解释:
+imgs_src：存储转换格式前的图片
+transfrom_format/test：存储验证数据集
+transformed_imgs/train：存储转换格式后的训练图片数据集，以及图片的标签数据
+transformed_imgs/test：存储转换格式后的测试图片数据集，以及图片的标签数据
