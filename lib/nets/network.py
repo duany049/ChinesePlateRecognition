@@ -7,6 +7,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.contrib.slim import losses
 from tensorflow.contrib.slim import arg_scope
+import tensorflow.contrib.rnn as rnn
 
 import numpy as np
 
@@ -252,12 +253,14 @@ class Network(object):
         fc7 = self._full_connect_layer(pool5, is_training)
         with tf.variable_scope(self._scope, self._scope):
             # region classification
-            cls_prob, bbox_pred = self._region_classification(fc7, is_training,
-                                                              initializer, initializer_bbox)
+            # cls_prob, bbox_pred = self._region_classification(fc7, is_training,
+            #                                                   initializer, initializer_bbox)
+            cls_logits, bbox_pred = self._region_classification(fc7, is_training,
+                                                                initializer, initializer_bbox)
 
         self._score_summaries.update(self._predict_layers)
 
-        return rois, cls_prob, bbox_pred
+        return rois, cls_logits, bbox_pred
 
     def _smooth_l1_loss(self, bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights, sigma=1.0, dim=[1]):
         sigma_2 = sigma ** 2
@@ -294,10 +297,17 @@ class Network(object):
                                                 rpn_bbox_outside_weights, sigma=sigma_rpn, dim=[1, 2, 3])
 
             # RCNN, class loss
-            cls_score = self._predict_layers["cls_score"]
-            label = tf.reshape(self._proposal_targets["labels"], [-1])
-            cross_entropy = tf.reduce_mean(
-                tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label))
+            # cls_score = self._predict_layers["cls_score"]
+            # label = tf.reshape(self._proposal_targets["labels"], [-1])
+            # cross_entropy = tf.reduce_mean(
+            #     tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label))
+
+            # 使用ctc loss
+            cls_logits = self._predict_layers["cls_logits"]
+            cls_targets = self._predict_layers["cls_targets"]
+            cls_seq_len = self._predict_layers["cls_seq_len"]
+            ctc_loss = tf.nn.ctc_loss(cls_targets, cls_logits, cls_seq_len)
+            ctc_cost = tf.reduce_mean(ctc_loss)
 
             # RCNN, bbox loss
             bbox_pred = self._predict_layers['bbox_pred']
@@ -306,12 +316,14 @@ class Network(object):
             bbox_outside_weights = self._proposal_targets['bbox_outside_weights']
             loss_box = self._smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
 
-            self._losses['cross_entropy'] = cross_entropy
+            # self._losses['cross_entropy'] = cross_entropy
+            self._losses['ctc_cost'] = ctc_cost
             self._losses['loss_box'] = loss_box
             self._losses['rpn_cross_entropy'] = rpn_cross_entropy
             self._losses['rpn_loss_box'] = rpn_loss_box
 
-            loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
+            # loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
+            loss = ctc_cost + loss_box + rpn_cross_entropy + rpn_loss_box
             regularization_loss = tf.add_n(tf.losses.get_regularization_losses(), 'regu')
             self._losses['total_loss'] = loss + regularization_loss
 
@@ -358,23 +370,55 @@ class Network(object):
         return rois
 
     def _region_classification(self, fc7, is_training, initializer, initializer_bbox):
-        cls_score = slim.fully_connected(fc7, self._num_classes,
-                                         weights_initializer=initializer,
-                                         trainable=is_training,
-                                         activation_fn=None, scope='cls_score')
-        cls_prob = self._softmax_layer(cls_score, "cls_prob")
-        cls_pred = tf.argmax(cls_score, axis=1, name="cls_pred")
+        # cls_score = slim.fully_connected(fc7, self._num_classes,
+        #                                  weights_initializer=initializer,
+        #                                  trainable=is_training,
+        #                                  activation_fn=None, scope='cls_score')
+        # cls_prob = self._softmax_layer(cls_score, "cls_prob")
+        # cls_pred = tf.argmax(cls_score, axis=1, name="cls_pred")
+        # 使用lstm代替softmax进行车牌识别,注意: 这儿训练图片使用cv读取,所以shape是(height, width, channel)
+        # TODO 1,先使用fc7来试试效果,无论效果如何,都要用pool5直接试试,记得转换shape
+        # TODO 2,NUM_HIDDEN 256和128都试试, NUM_LAYERS 1和2都试试
+
+        # size为batch_size的以为数组,元素是每个待预测序列的长度
+        seq_len = tf.placeholder(tf.int32, [None])
+        # Here we use sparse_placeholder that will generate a
+        # SparseTensor required by ctc_loss op.
+        targets = tf.sparse_placeholder(tf.int32)
+
+        # 方式一: 使用fc7,shape为(batch_size, -1, 1), 最大时序为-1, feature为1
+        fc7_shape = tf.shape(fc7)
+        feature = tf.reshape(fc7, [fc7_shape[0], -1, 1])
+        stack = rnn.MultiRNNCell([rnn.LSTMCell(cfg.MY.NUM_HIDDEN) for _ in range(cfg.MY.NUM_LAYERS)])
+        outputs, _ = tf.nn.dynamic_rnn(stack, feature, seq_len, dtype=tf.float32)
+        feature_shape = tf.shape(feature)
+        batch_size, max_timesteps = feature_shape[0], feature_shape[1]
+        outputs = tf.reshape(outputs, [-1, cfg.MY.NUM_HIDDEN])
+        W = tf.Variable(tf.truncated_normal([cfg.MY.NUM_HIDDEN, cfg.MY.NUM_CLASSES], name='lstm_w'))
+        b = tf.Variable(tf.constant(0., shape=[cfg.MY.NUM_CLASSES]), name='lstm_b')
+        logits = tf.matmul(outputs, W) + b
+        # Reshaping back to the original shape
+        logits = tf.reshape(logits, [batch_size, -1, cfg.MY.NUM_CLASSES])
+        # ctc使用下面这种形式(max_timesteps, batch_size, num_classes)
+        logits = tf.transpose(logits, (1, 0, 2))
+
+        # 方式二: 使用pool5,转换shape为(batch_size, width, height * channel)
+
         bbox_pred = slim.fully_connected(fc7, self._num_classes * 4,
                                          weights_initializer=initializer_bbox,
                                          trainable=is_training,
                                          activation_fn=None, scope='bbox_pred')
 
-        self._predict_layers["cls_score"] = cls_score
-        self._predict_layers["cls_pred"] = cls_pred
-        self._predict_layers["cls_prob"] = cls_prob
+        # self._predict_layers["cls_score"] = cls_score
+        # self._predict_layers["cls_pred"] = cls_pred
+        # self._predict_layers["cls_prob"] = cls_prob
+        self._predict_layers["cls_logits"] = logits
+        self._predict_layers["cls_targets"] = targets
+        self._predict_layers["cls_seq_len"] = seq_len
         self._predict_layers["bbox_pred"] = bbox_pred
 
-        return cls_prob, bbox_pred
+        # return cls_prob, bbox_pred
+        return logits, bbox_pred
 
     def _image_feature_extract(self, is_training, reuse=None):
         """
@@ -430,7 +474,8 @@ class Network(object):
                        weights_regularizer=weights_regularizer,
                        biases_regularizer=biases_regularizer,
                        biases_initializer=tf.constant_initializer(0.0)):
-            rois, cls_prob, bbox_pred = self._build_network(training)
+            # rois, cls_prob, bbox_pred = self._build_network(training)
+            rois, cls_logits, bbox_pred = self._build_network(training)
 
         layers_to_output = {'rois': rois}
 
@@ -502,7 +547,8 @@ class Network(object):
                      self._gt_boxes: blobs['gt_boxes']}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                             self._losses['rpn_loss_box'],
-                                                                            self._losses['cross_entropy'],
+                                                                            # self._losses['cross_entropy'],
+                                                                            self._losses['ctc_cost'],
                                                                             self._losses['loss_box'],
                                                                             self._losses['total_loss'],
                                                                             train_op],
@@ -514,7 +560,8 @@ class Network(object):
                      self._gt_boxes: blobs['gt_boxes']}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                                      self._losses['rpn_loss_box'],
-                                                                                     self._losses['cross_entropy'],
+                                                                                     # self._losses['cross_entropy'],
+                                                                                     self._losses['ctc_cost'],
                                                                                      self._losses['loss_box'],
                                                                                      self._losses['total_loss'],
                                                                                      self._summary_op,

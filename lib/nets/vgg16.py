@@ -14,7 +14,7 @@ class Vgg16(Network):
         # 经过四次pooling,图片缩小了16倍
         self._feat_stride = [16, ]
         self._feat_compress = [1. / float(self._feat_stride[0]), ]
-        self._scope = 'vgg16'
+        self._scope = 'vgg_16'
 
     def _image_feature_extract(self, is_training, reuse=None):
         """

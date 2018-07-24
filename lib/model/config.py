@@ -292,6 +292,9 @@ __C.RPN_CHANNELS = 512
 # defined by myself
 __C.MY = edict()
 __C.MY.TRAIN_RATIO = 0.8
+__C.MY.NUM_HIDDEN = 256
+__C.MY.NUM_LAYERS = 1
+__C.MY.NUM_CLASSES = 21 + 1 + 1
 
 
 def get_output_dir(imdb, weights_filename):
