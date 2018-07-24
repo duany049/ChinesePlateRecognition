@@ -309,7 +309,8 @@ class Network(object):
             # 暂时用不到这个,label是从其他数据计算过来的
             # cls_targets = self._predict_layers["cls_targets"]
             label = tf.reshape(self._proposal_targets["labels"], [-1])
-            cls_targets = sparse_tuple_from(label)
+            cls_targets = tf.py_func(sparse_tuple_from, [label], [tf.int32])
+            # cls_targets = sparse_tuple_from(label)
             cls_seq_len = self._predict_layers["cls_seq_len"]
             ctc_loss = tf.nn.ctc_loss(cls_targets, cls_logits, cls_seq_len)
             ctc_cost = tf.reduce_mean(ctc_loss)
