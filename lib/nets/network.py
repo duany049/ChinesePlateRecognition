@@ -310,6 +310,7 @@ class Network(object):
             # cls_targets = self._predict_layers["cls_targets"]
             label = tf.reshape(self._proposal_targets["labels"], [-1])
             cls_targets = tf.py_func(sparse_tuple_from, [label], [tf.int32])
+            tf.SparseTensor(cls_targets)
             # cls_targets = sparse_tuple_from(label)
             cls_seq_len = self._predict_layers["cls_seq_len"]
             ctc_loss = tf.nn.ctc_loss(cls_targets, cls_logits, cls_seq_len)
@@ -422,7 +423,7 @@ class Network(object):
         self._predict_layers["cls_targets"] = targets
         self._predict_layers["cls_seq_len"] = seq_len
         self._predict_layers["bbox_pred"] = bbox_pred
-
+        self._predict_layers["max_timesteps"] = feature_shape[1]
         # return cls_prob, bbox_pred
         return logits, bbox_pred
 
@@ -550,7 +551,8 @@ class Network(object):
 
     def train_step(self, sess, blobs, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
-                     self._gt_boxes: blobs['gt_boxes']}
+                     self._gt_boxes: blobs['gt_boxes'],
+                     self._predict_layers["cls_seq_len"]: self._predict_layers["max_timesteps"]}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                             self._losses['rpn_loss_box'],
                                                                             # self._losses['cross_entropy'],
@@ -563,7 +565,8 @@ class Network(object):
 
     def train_step_with_summary(self, sess, blobs, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
-                     self._gt_boxes: blobs['gt_boxes']}
+                     self._gt_boxes: blobs['gt_boxes'],
+                     self._predict_layers["cls_seq_len"]: self._predict_layers["max_timesteps"]}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                                      self._losses['rpn_loss_box'],
                                                                                      # self._losses['cross_entropy'],
