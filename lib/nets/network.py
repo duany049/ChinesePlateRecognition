@@ -19,6 +19,7 @@ from layer_utils.proposal_target_layer import proposal_target_layer
 from utils.visualization import draw_bounding_boxes
 
 from model.config import cfg
+import utils
 
 
 class Network(object):
@@ -191,6 +192,7 @@ class Network(object):
 
             rois.set_shape([cfg.TRAIN.BATCH_SIZE, 5])
             roi_scores.set_shape([cfg.TRAIN.BATCH_SIZE])
+            # labels是k+1类别
             labels.set_shape([cfg.TRAIN.BATCH_SIZE, 1])
             bbox_targets.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
             bbox_inside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
@@ -304,7 +306,10 @@ class Network(object):
 
             # 使用ctc loss
             cls_logits = self._predict_layers["cls_logits"]
-            cls_targets = self._predict_layers["cls_targets"]
+            # 暂时用不到这个,label是从其他数据计算过来的
+            # cls_targets = self._predict_layers["cls_targets"]
+            label = tf.reshape(self._proposal_targets["labels"], [-1])
+            cls_targets = utils.sparse_tuple_from(label)
             cls_seq_len = self._predict_layers["cls_seq_len"]
             ctc_loss = tf.nn.ctc_loss(cls_targets, cls_logits, cls_seq_len)
             ctc_cost = tf.reduce_mean(ctc_loss)

@@ -37,6 +37,7 @@ def proposal_target_layer(rpn_rois, rpn_scores, gt_boxes, _num_classes):
 
   num_images = 1
   rois_per_image = cfg.TRAIN.BATCH_SIZE / num_images
+  # TODO 之后再试试FG_FRACTION为0.5时的效果
   fg_rois_per_image = np.round(cfg.TRAIN.FG_FRACTION * rois_per_image)
 
   # Sample rois with classification labels and bounding box regression
@@ -106,6 +107,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
     np.ascontiguousarray(gt_boxes[:, :4], dtype=np.float))
   gt_assignment = overlaps.argmax(axis=1)
   max_overlaps = overlaps.max(axis=1)
+  # 类别
   labels = gt_boxes[gt_assignment, 4]
 
   # Select foreground RoIs as those with >= FG_THRESH overlap
@@ -118,8 +120,10 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   # Small modification to the original version where we ensure a fixed number of regions are sampled
   if fg_inds.size > 0 and bg_inds.size > 0:
     fg_rois_per_image = min(fg_rois_per_image, fg_inds.size)
+    # 随机保留指定数量的rois
     fg_inds = npr.choice(fg_inds, size=int(fg_rois_per_image), replace=False)
     bg_rois_per_image = rois_per_image - fg_rois_per_image
+    # 如果数量不够,就重复使用
     to_replace = bg_inds.size < bg_rois_per_image
     bg_inds = npr.choice(bg_inds, size=int(bg_rois_per_image), replace=to_replace)
   elif fg_inds.size > 0:

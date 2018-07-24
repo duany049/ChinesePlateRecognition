@@ -21,6 +21,7 @@ def im_list_to_blob(ims):
   """
   max_shape = np.array([im.shape for im in ims]).max(axis=0)
   num_images = len(ims)
+  # 使用imgs中最大的height和最大的width,作为blob的heigth和width,用来统一所有的尺寸
   blob = np.zeros((num_images, max_shape[0], max_shape[1], 3),
                   dtype=np.float32)
   for i in range(num_images):
