@@ -1,5 +1,6 @@
 # coding=utf-8
 import numpy as np
+from model.config import cfg
 
 
 def random_range(max_value):
@@ -29,3 +30,10 @@ def sparse_tuple_from(sequences, dtype=np.int32):
     print('indices: {} - values: {} - shape: {}'.format(indices, values, shape))
 
     return indices, values, shape
+
+def transform_for_ctc(label):
+    """
+    TODO 是否有必要？
+    生成供ctc训练的label
+    """
+    np.asarray([cfg.MY.SPACE_INDEX if x == cfg.MY.SPACE_TOKEN else () for x in label])

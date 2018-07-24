@@ -20,6 +20,7 @@ from utils.visualization import draw_bounding_boxes
 
 from model.config import cfg
 from my_utils import sparse_tuple_from
+from my_utils import transform_for_ctc
 
 
 class Network(object):
@@ -309,6 +310,7 @@ class Network(object):
             # 暂时用不到这个,label是从其他数据计算过来的
             # cls_targets = self._predict_layers["cls_targets"]
             label = tf.reshape(self._proposal_targets["labels"], [-1])
+            # label = tf.py_func(transform_for_ctc, [label], [tf.int32])
             cls_targets = tf.py_func(sparse_tuple_from, [label], [tf.int32])
             tf.SparseTensor(cls_targets)
             # cls_targets = sparse_tuple_from(label)
