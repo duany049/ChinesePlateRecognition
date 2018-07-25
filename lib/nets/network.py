@@ -339,6 +339,7 @@ class Network(object):
 
             # loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
             loss = ctc_cost + loss_box + rpn_cross_entropy + rpn_loss_box
+            # TODO 不知此regularization是否适用于ctc,古先注释掉
             # regularization_loss = tf.add_n(tf.losses.get_regularization_losses(), 'regu')
             # self._losses['total_loss'] = loss + regularization_loss
             self._losses['total_loss'] = loss

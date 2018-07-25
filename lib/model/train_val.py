@@ -295,7 +295,9 @@ class SolverWrapper(object):
       timer.toc()
 
       # Display training information
-      if iter % (cfg.TRAIN.DISPLAY) == 0:
+      # if iter % (cfg.TRAIN.DISPLAY) == 0:
+      # TODO 为了测试,才这么改,之后要改回来
+      if iter % 1 == 0:
         print('iter: %d / %d, total loss: %.6f\n >>> rpn_loss_cls: %.6f\n '
               '>>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f, ctc_acc: %.6f\n >>> loss_box: %.6f\n >>> lr: %f' % \
               (iter, max_iters, total_loss, rpn_loss_cls, rpn_loss_box, loss_cls, ctc_acc, loss_box, lr.eval()))
