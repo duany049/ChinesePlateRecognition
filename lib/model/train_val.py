@@ -106,7 +106,7 @@ class SolverWrapper(object):
     try:
       reader = pywrap_tensorflow.NewCheckpointReader(file_name)
       var_to_shape_map = reader.get_variable_to_shape_map()
-      return var_to_shape_map 
+      return var_to_shape_map
     except Exception as e:  # pylint: disable=broad-except
       print(str(e))
       if "corrupted compressed block contents" in str(e):
@@ -159,7 +159,7 @@ class SolverWrapper(object):
     # Get the snapshot name in TensorFlow
     redfiles = []
     for stepsize in cfg.TRAIN.STEPSIZE:
-      redfiles.append(os.path.join(self.output_dir, 
+      redfiles.append(os.path.join(self.output_dir,
                       cfg.TRAIN.SNAPSHOT_PREFIX + '_iter_{:d}.ckpt.meta'.format(stepsize+1)))
     sfiles = [ss.replace('.meta', '') for ss in sfiles if ss not in redfiles]
 
@@ -254,8 +254,8 @@ class SolverWrapper(object):
     if lsf == 0:
       rate, last_snapshot_iter, stepsizes, np_paths, ss_paths = self.initialize(sess)
     else:
-      rate, last_snapshot_iter, stepsizes, np_paths, ss_paths = self.restore(sess, 
-                                                                            str(sfiles[-1]), 
+      rate, last_snapshot_iter, stepsizes, np_paths, ss_paths = self.restore(sess,
+                                                                            str(sfiles[-1]),
                                                                             str(nfiles[-1]))
     timer = Timer()
     iter = last_snapshot_iter + 1
@@ -280,7 +280,7 @@ class SolverWrapper(object):
       now = time.time()
       if iter == 1 or now - last_summary_time > cfg.TRAIN.SUMMARY_INTERVAL:
         # Compute the graph with summary
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss, summary = \
+        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss, summary, ctc_acc = \
           self.net.train_step_with_summary(sess, blobs, train_op)
         self.writer.add_summary(summary, float(iter))
         # Also check the summary on the validation set
@@ -290,15 +290,15 @@ class SolverWrapper(object):
         last_summary_time = now
       else:
         # Compute the graph without summary
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss = \
+        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss, ctc_acc = \
           self.net.train_step(sess, blobs, train_op)
       timer.toc()
 
       # Display training information
       if iter % (cfg.TRAIN.DISPLAY) == 0:
         print('iter: %d / %d, total loss: %.6f\n >>> rpn_loss_cls: %.6f\n '
-              '>>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f\n >>> loss_box: %.6f\n >>> lr: %f' % \
-              (iter, max_iters, total_loss, rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, lr.eval()))
+              '>>> rpn_loss_box: %.6f\n >>> loss_cls: %.6f, ctc_acc: %.6f\n >>> loss_box: %.6f\n >>> lr: %f' % \
+              (iter, max_iters, total_loss, rpn_loss_cls, rpn_loss_box, loss_cls, ctc_acc, loss_box, lr.eval()))
         print('speed: {:.3f}s / iter'.format(timer.average_time))
 
       # Snapshotting
