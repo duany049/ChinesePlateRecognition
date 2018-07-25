@@ -8,6 +8,8 @@ import tensorflow.contrib.slim as slim
 from tensorflow.contrib.slim import losses
 from tensorflow.contrib.slim import arg_scope
 import tensorflow.contrib.rnn as rnn
+from tensorflow.python.framework.sparse_tensor import SparseTensor
+from tensorflow.python.framework.sparse_tensor import SparseTensorValue
 
 import numpy as np
 
@@ -60,6 +62,7 @@ class Network(object):
                           tf.nn.zero_fraction(tensor))
 
     def _add_score_summary(self, key, tensor):
+       # pass
         tf.summary.histogram('SCORE/' + tensor.op.name + '/' + key + '/scores', tensor)
 
     def _add_train_summary(self, var):
@@ -309,13 +312,13 @@ class Network(object):
             cls_logits = self._predict_layers["cls_logits"]
             # 暂时用不到这个,label是从其他数据计算过来的
             # cls_targets = self._predict_layers["cls_targets"]
-            label = tf.reshape(self._proposal_targets["labels"], [-1])
-            # label = tf.py_func(transform_for_ctc, [label], [tf.int32])
-            cls_targets = tf.py_func(sparse_tuple_from, [label], [tf.int32])
-            tf.SparseTensor(cls_targets)
+            label = tf.reshape(self._proposal_targets['labels'], [-1])
+
+            indices, values, dense_shape = tf.py_func(sparse_tuple_from, [label], [tf.int64, tf.int32, tf.int64])
+            cls_targets = tf.SparseTensor(indices, values, dense_shape)
+            print("is sparse tensor: {} - {} ", isinstance(cls_targets, SparseTensorValue), isinstance(cls_targets, SparseTensor))
             # cls_targets = sparse_tuple_from(label)
-            cls_seq_len = self._predict_layers["cls_seq_len"]
-            ctc_loss = tf.nn.ctc_loss(cls_targets, cls_logits, cls_seq_len)
+            ctc_loss = tf.nn.ctc_loss(cls_targets, cls_logits, self.seq_len)
             ctc_cost = tf.reduce_mean(ctc_loss)
 
             # RCNN, bbox loss
@@ -390,7 +393,7 @@ class Network(object):
         # TODO 2,NUM_HIDDEN 256和128都试试, NUM_LAYERS 1和2都试试
 
         # size为batch_size的以为数组,元素是每个待预测序列的长度
-        seq_len = tf.placeholder(tf.int32, [None])
+        self.seq_len = tf.placeholder(tf.int32, [None])
         # Here we use sparse_placeholder that will generate a
         # SparseTensor required by ctc_loss op.
         targets = tf.sparse_placeholder(tf.int32)
@@ -399,7 +402,7 @@ class Network(object):
         fc7_shape = tf.shape(fc7)
         feature = tf.reshape(fc7, [fc7_shape[0], -1, 1])
         stack = rnn.MultiRNNCell([rnn.LSTMCell(cfg.MY.NUM_HIDDEN) for _ in range(cfg.MY.NUM_LAYERS)])
-        outputs, _ = tf.nn.dynamic_rnn(stack, feature, seq_len, dtype=tf.float32)
+        outputs, _ = tf.nn.dynamic_rnn(stack, feature, self.seq_len, dtype=tf.float32)
         feature_shape = tf.shape(feature)
         batch_size, max_timesteps = feature_shape[0], feature_shape[1]
         outputs = tf.reshape(outputs, [-1, cfg.MY.NUM_HIDDEN])
@@ -422,10 +425,9 @@ class Network(object):
         # self._predict_layers["cls_pred"] = cls_pred
         # self._predict_layers["cls_prob"] = cls_prob
         self._predict_layers["cls_logits"] = logits
-        self._predict_layers["cls_targets"] = targets
-        self._predict_layers["cls_seq_len"] = seq_len
         self._predict_layers["bbox_pred"] = bbox_pred
-        self._predict_layers["seq_len_value"] = [feature_shape[1]] * feature_shape[0]
+        self.seq_len_value = np.asarray([4096] * 256, dtype=np.int32)
+        self._predict_layers["fc7_shape"] = fc7_shape
         # return cls_prob, bbox_pred
         return logits, bbox_pred
 
@@ -546,7 +548,7 @@ class Network(object):
 
     def get_summary(self, sess, blobs):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
-                     self._gt_boxes: blobs['gt_boxes']}
+                     self._gt_boxes: blobs['gt_boxes'],self.seq_len: self.seq_len_value}
         summary = sess.run(self._summary_op_val, feed_dict=feed_dict)
 
         return summary
@@ -554,7 +556,7 @@ class Network(object):
     def train_step(self, sess, blobs, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'],
-                     self._predict_layers["cls_seq_len"]: self._predict_layers["seq_len_value"]}
+                     self.seq_len: self.seq_len_value}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                             self._losses['rpn_loss_box'],
                                                                             # self._losses['cross_entropy'],
@@ -568,16 +570,18 @@ class Network(object):
     def train_step_with_summary(self, sess, blobs, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'],
-                     self._predict_layers["cls_seq_len"]: self._predict_layers["seq_len_value"]}
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _ = sess.run([self._losses["rpn_cross_entropy"],
+                     self.seq_len: self.seq_len_value}
+        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _, fc7_shape = sess.run([self._losses["rpn_cross_entropy"],
                                                                                      self._losses['rpn_loss_box'],
                                                                                      # self._losses['cross_entropy'],
                                                                                      self._losses['ctc_cost'],
                                                                                      self._losses['loss_box'],
                                                                                      self._losses['total_loss'],
                                                                                      self._summary_op,
-                                                                                     train_op],
+                                                                                     train_op,
+                                                                                     self._predict_layers["fc7_shape"]],
                                                                                     feed_dict=feed_dict)
+        print("dy test fc7_shape: {}".format(fc7_shape))
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary
 
     def train_step_no_return(self, sess, blobs, train_op):

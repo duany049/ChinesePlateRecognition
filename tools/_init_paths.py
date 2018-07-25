@@ -11,5 +11,9 @@ this_dir = osp.dirname(__file__)
 lib_path = osp.join(this_dir, '..', 'lib')
 add_path(lib_path)
 
+# Add root path
+root_path = osp.join(this_dir, '..')
+add_path(root_path)
+
 coco_path = osp.join(this_dir, '..', 'data', 'coco', 'PythonAPI')
 add_path(coco_path)

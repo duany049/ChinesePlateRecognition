@@ -16,8 +16,8 @@ import pprint
 import time, os, sys
 
 import tensorflow as tf
-from nets.vgg16 import vgg16
-from nets.resnet_v1 import resnetv1
+from nets.vgg16 import Vgg16
+from nets.resnet_v1 import Resnetv1
 from nets.mobilenet_v1 import mobilenetv1
 
 def parse_args():
@@ -90,13 +90,13 @@ if __name__ == '__main__':
   sess = tf.Session(config=tfconfig)
   # load network
   if args.net == 'vgg16':
-    net = vgg16()
+    net = Vgg16()
   elif args.net == 'res50':
-    net = resnetv1(num_layers=50)
+    net = Resnetv1(num_layers=50)
   elif args.net == 'res101':
-    net = resnetv1(num_layers=101)
+    net = Resnetv1(num_layers=101)
   elif args.net == 'res152':
-    net = resnetv1(num_layers=152)
+    net = Resnetv1(num_layers=152)
   elif args.net == 'mobile':
     net = mobilenetv1()
   else:

@@ -21,13 +21,16 @@ def sparse_tuple_from(sequences, dtype=np.int32):
     values = []
 
     for n, seq in enumerate(sequences):
-        indices.extend(zip([n] * len(seq), range(len(seq))))
+        # indices.extend(zip([n] * len(seq), range(len(seq))))
+        # 测试项目,序列只有1个 TODO 改成车牌时候的时候要改过来
+        indices.extend(zip([n] * 1, range(1)))
+        seq = [seq]
         values.extend(seq)
 
     indices = np.asarray(indices, dtype=np.int64)
     values = np.asarray(values, dtype=dtype)
     shape = np.asarray([len(sequences), np.asarray(indices).max(0)[1] + 1], dtype=np.int64)
-    print('indices: {} - values: {} - shape: {}'.format(indices, values, shape))
+    # print('indices: {} - values: {} - shape: {}'.format(indices, values, shape))
 
     return indices, values, shape
 

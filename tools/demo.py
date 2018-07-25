@@ -11,7 +11,7 @@ Demo script showing detections in sample images.
 
 See README.md for installation instructions before running.
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
@@ -27,8 +27,8 @@ import numpy as np
 import os, cv2
 import argparse
 
-from nets.vgg16 import vgg16
-from nets.resnet_v1 import resnetv1
+from nets.vgg16 import Vgg16
+from nets.resnet_v1 import Resnetv1
 
 CLASSES = ('__background__',
            'aeroplane', 'bicycle', 'bird', 'boat',
@@ -103,7 +103,7 @@ def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='Tensorflow Faster R-CNN demo')
     parser.add_argument('--net', dest='demo_net', help='Network to use [vgg16 res101]',
-                        choices=NETS.keys(), default='res101')
+                        choices=NETS.keys(), default='vgg16')
     parser.add_argument('--dataset', dest='dataset', help='Trained dataset [pascal_voc pascal_voc_0712]',
                         choices=DATASETS.keys(), default='pascal_voc_0712')
     args = parser.parse_args()
@@ -133,9 +133,9 @@ if __name__ == '__main__':
     sess = tf.Session(config=tfconfig)
     # load network
     if demonet == 'vgg16':
-        net = vgg16()
+        net = Vgg16()
     elif demonet == 'res101':
-        net = resnetv1(num_layers=101)
+        net = Resnetv1(num_layers=101)
     else:
         raise NotImplementedError
     net.create_architecture("TEST", 21,

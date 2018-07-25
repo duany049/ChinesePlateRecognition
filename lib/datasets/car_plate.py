@@ -123,4 +123,4 @@ class car_plate(imdb):
         """
         Return the default path where car plate is expected to be installed.
         """
-        return os.path.join(cfg.DATA_DIR, 'transfrom_format', 'transformed_imgs')
+        return os.path.join(cfg.DATA_DIR, 'CarPlate', 'transformed_imgs')
