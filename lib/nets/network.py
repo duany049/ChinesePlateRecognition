@@ -559,7 +559,7 @@ class Network(object):
                                                                       self._predict_layers['rois']],
                                                                      feed_dict=feed_dict)
         print('dy test ctc_decoded shape: {} - value: {} - target: {}'
-              .format(np.array(ctc_decoded).shape, ctc_decoded), cls_targets)
+              .format(np.array(ctc_decoded).shape, ctc_decoded, cls_targets))
         return cls_score, cls_prob, bbox_pred, rois
 
     def get_summary(self, sess, blobs):
