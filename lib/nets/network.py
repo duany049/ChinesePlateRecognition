@@ -315,14 +315,14 @@ class Network(object):
             label = tf.reshape(self._proposal_targets['labels'], [-1])
 
             indices, values, dense_shape = tf.py_func(sparse_tuple_from, [label], [tf.int64, tf.int32, tf.int64])
-            cls_targets = tf.SparseTensor(indices, values, dense_shape)
-            print("is sparse tensor: {} - {} ", isinstance(cls_targets, SparseTensorValue),
-                  isinstance(cls_targets, SparseTensor))
+            self.cls_targets = tf.SparseTensor(indices, values, dense_shape)
+            print("is sparse tensor: {} - {} ", isinstance(self.cls_targets, SparseTensorValue),
+                  isinstance(self.cls_targets, SparseTensor))
             # cls_targets = sparse_tuple_from(label)
-            ctc_loss = tf.nn.ctc_loss(cls_targets, cls_logits, self.seq_len)
+            ctc_loss = tf.nn.ctc_loss(self.cls_targets, cls_logits, self.seq_len)
             ctc_cost = tf.reduce_mean(ctc_loss)
             decoded, log_prob = tf.nn.ctc_beam_search_decoder(cls_logits, self.seq_len, merge_repeated=False)
-            ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), cls_targets))
+            ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self.cls_targets))
             self._predict_layers['ctc_acc'] = ctc_acc
 
             # RCNN, bbox loss
@@ -549,16 +549,17 @@ class Network(object):
                      self._im_info: im_info,
                      self.seq_len: self.seq_len_test_value}
 
-        cls_score, cls_prob, ctc_decoded, bbox_pred, rois = sess.run([self._predict_layers["cls_logits"],
+        cls_score, cls_prob, ctc_decoded, cls_targets, bbox_pred, rois = sess.run([self._predict_layers["cls_logits"],
                                                                       # self._predict_layers["cls_score"],
                                                                       # self._predict_layers['cls_prob'],
                                                                       self._predict_layers['ctc_cls_prob'],
                                                                       self.ctc_decoded,
+                                                                      self.cls_targets,
                                                                       self._predict_layers['bbox_pred'],
                                                                       self._predict_layers['rois']],
                                                                      feed_dict=feed_dict)
-        print('dy test ctc_decoded shape: {} - value: {}'
-              .format(np.array(ctc_decoded).shape, ctc_decoded))
+        print('dy test ctc_decoded shape: {} - value: {} - target: {}'
+              .format(np.array(ctc_decoded).shape, ctc_decoded), cls_targets)
         return cls_score, cls_prob, bbox_pred, rois
 
     def get_summary(self, sess, blobs):
