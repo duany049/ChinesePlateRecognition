@@ -298,7 +298,6 @@ __C.MY.TRAIN_RATIO = 0.8
 __C.MY.NUM_HIDDEN = 128
 __C.MY.NUM_LAYERS = 1
 __C.MY.NUM_CLASSES = 21 + 1 + 1
-cfg.MY.SPACE_INDEX =
 
 
 def get_output_dir(imdb, weights_filename):

@@ -550,19 +550,18 @@ class Network(object):
                      self._im_info: im_info,
                      self.seq_len: self.seq_len_test_value}
 
-        cls_score, cls_prob, ctc_decoded, cls_targets, bbox_pred, rois = sess.run([self._predict_layers["cls_logits"],
+        cls_score, cls_prob, ctc_decoded, bbox_pred, rois = sess.run([self._predict_layers["cls_logits"],
                                                                       # self._predict_layers["cls_score"],
                                                                       # self._predict_layers['cls_prob'],
                                                                       self._predict_layers['ctc_cls_prob'],
                                                                       self.ctc_decoded[0],
-                                                                      self.cls_targets,
                                                                       self._predict_layers['bbox_pred'],
                                                                       self._predict_layers['rois']],
                                                                      feed_dict=feed_dict)
         # print('dy test ctc_decoded shape: {} - value: {} - target: {}'
         #       .format(np.array(ctc_decoded).shape, ctc_decoded, cls_targets))
         print('==============cls targets====================')
-        decode_sparse_tensor(cls_targets)
+        #decode_sparse_tensor(cls_targets)
         print('==============ctc decoded====================')
         decode_sparse_tensor(ctc_decoded)
         return cls_score, cls_prob, bbox_pred, rois
