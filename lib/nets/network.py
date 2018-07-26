@@ -23,6 +23,7 @@ from utils.visualization import draw_bounding_boxes
 from model.config import cfg
 from my_utils import sparse_tuple_from
 from my_utils import transform_for_ctc
+from my_utils import decode_sparse_tensor
 
 
 class Network(object):
@@ -553,13 +554,17 @@ class Network(object):
                                                                       # self._predict_layers["cls_score"],
                                                                       # self._predict_layers['cls_prob'],
                                                                       self._predict_layers['ctc_cls_prob'],
-                                                                      self.ctc_decoded,
+                                                                      self.ctc_decoded[0],
                                                                       self.cls_targets,
                                                                       self._predict_layers['bbox_pred'],
                                                                       self._predict_layers['rois']],
                                                                      feed_dict=feed_dict)
-        print('dy test ctc_decoded shape: {} - value: {} - target: {}'
-              .format(np.array(ctc_decoded).shape, ctc_decoded, cls_targets))
+        # print('dy test ctc_decoded shape: {} - value: {} - target: {}'
+        #       .format(np.array(ctc_decoded).shape, ctc_decoded, cls_targets))
+        print('==============cls targets====================')
+        decode_sparse_tensor(cls_targets)
+        print('==============ctc decoded====================')
+        decode_sparse_tensor(ctc_decoded)
         return cls_score, cls_prob, bbox_pred, rois
 
     def get_summary(self, sess, blobs):
