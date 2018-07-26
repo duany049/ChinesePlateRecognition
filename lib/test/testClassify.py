@@ -1,16 +1,23 @@
 # coding=utf-8
 
+#from ...tools import _init_paths
 import matplotlib.pyplot as plt
 import numpy as np
+import os.path as osp
+import sys
+
+
+import _init_paths_test
+print(sys.path)
 from lib.common.config import cfg
 import argparse
 import os
-from .vgg16 import Vgg16
+from lib.test.vgg16 import Vgg16
 import random
 import tensorflow as tf
 from tensorflow.python import pywrap_tensorflow
 import time
-from utils.timer import Timer
+from lib.utils.timer import Timer
 from my_utils import *
 
 NETS = {'vgg16': ('vgg16_faster_rcnn_iter_70000.ckpt',), 'res101': ('res101_faster_rcnn_iter_110000.ckpt',)}
@@ -57,7 +64,7 @@ class DataGain(object):
         image_content = tf.read_file(image_path)
         # image = tf.image.convert_image_dtype(tf.image.decode_jpeg(image_content, channels=1), tf.float32)
         # TODO 变成一纬的挺好的，我现在是为了还原当时的场景，以后可以改成单通道
-        image = tf.image.convert_image_dtype(tf.image.decode_jpeg(image_content), tf.float32)
+        image = tf.image.convert_image_dtype(tf.image.decode_jpeg(image_content, channels=3), tf.float32)
         # TODO 我得定义一个size
         new_size = tf.constant([cfg.MY.WIDTH, cfg.MY.HEIGTH], dtype=tf.int32)
         image = tf.image.resize_images(image, new_size)
@@ -210,7 +217,7 @@ class SolverWrapper(object):
 if __name__ == '__main__':
     net = Vgg16()
     # TODO 写vgg16权值预存目录
-    pretrained_model = 'data/imagenet_weights/vgg_16.ckpt'
+    pretrained_model = os.path.join('data/imagenet_weights/vgg_16.ckpt')
     model_name = 'test_car_plate'
     output_dir = 'output/vgg16/' + model_name
     tb_dir = 'tensorboard/vgg16/' + model_name + '/default'

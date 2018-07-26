@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import absolute_import
+#from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
@@ -12,6 +12,8 @@ from tensorflow.python.framework.sparse_tensor import SparseTensor
 from tensorflow.python.framework.sparse_tensor import SparseTensorValue
 
 import numpy as np
+
+
 
 from layer_utils.snippets import generate_anchors_pre, generate_anchors_pre_tf
 from layer_utils.proposal_layer import proposal_layer, proposal_layer_tf
