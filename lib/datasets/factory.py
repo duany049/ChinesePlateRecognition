@@ -14,6 +14,7 @@ __sets = {}
 from datasets.pascal_voc import pascal_voc
 from datasets.coco import coco
 from datasets.car_plate import car_plate
+from datasets.standard_car_plate import standard_car_plate
 
 import numpy as np
 
@@ -44,6 +45,11 @@ for year in ['2015']:
 for split in ['train', 'test']:
     name = 'car_plate_{}'.format(split)
     __sets[name] = (lambda split=split: car_plate(split))
+
+# Set up standard_car_plate_<split>
+for split in ['train', 'test']:
+    name = 'standard_car_plate_{}'.format(split)
+    __sets[name] = (lambda split=split: standard_car_plate(split))
 
 
 def get_imdb(name):

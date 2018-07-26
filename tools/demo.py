@@ -37,7 +37,7 @@ CLASSES = ('__background__',
            'motorbike', 'person', 'pottedplant',
            'sheep', 'sofa', 'train', 'tvmonitor')
 
-NETS = {'vgg16': ('vgg16_faster_rcnn_iter_70000.ckpt',),'res101': ('res101_faster_rcnn_iter_110000.ckpt',)}
+NETS = {'vgg16': ('vgg16_faster_rcnn_iter_5000.ckpt',),'res101': ('res101_faster_rcnn_iter_110000.ckpt',)}
 DATASETS= {'pascal_voc': ('voc_2007_trainval',),'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',)}
 
 def vis_detections(im, class_name, dets, thresh=0.5):
@@ -117,13 +117,17 @@ if __name__ == '__main__':
     # model path
     demonet = args.demo_net
     dataset = args.dataset
-    tfmodel = os.path.join('output', demonet, DATASETS[dataset][0], 'default',
-                              NETS[demonet][0])
+    # tfmodel = os.path.join('output', demonet, DATASETS[dataset][0], 'default',
+    #                           NETS[demonet][0])
+    # if not os.path.isfile(tfmodel + '.meta'):
+    #     raise IOError(('{:s} not found.\nDid you download the proper networks from '
+    #                    'our server and place them properly?').format(tfmodel + '.meta'))
 
-
-    if not os.path.isfile(tfmodel + '.meta'):
-        raise IOError(('{:s} not found.\nDid you download the proper networks from '
-                       'our server and place them properly?').format(tfmodel + '.meta'))
+    ck_dir = os.path.join('output', demonet, DATASETS[dataset][0], 'default')
+    latest_model = tf.train.latest_checkpoint(ck_dir)
+    print('latest_model: {}'.format(latest_model))
+    if not latest_model:
+        raise IOError('ckpoint not found')
 
     # set config
     tfconfig = tf.ConfigProto(allow_soft_placement=True)
@@ -140,10 +144,13 @@ if __name__ == '__main__':
         raise NotImplementedError
     net.create_architecture("TEST", 21,
                           tag='default', anchor_scales=[8, 16, 32])
-    saver = tf.train.Saver()
-    saver.restore(sess, tfmodel)
 
-    print('Loaded network {:s}'.format(tfmodel))
+    saver = tf.train.Saver()
+    # saver.restore(sess, tfmodel)
+    saver.restore(sess, latest_model)
+
+    # print('Loaded network {:s}'.format(tfmodel))
+    print('Loaded network {:s}'.format(latest_model))
 
     im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
                 '001763.jpg', '004545.jpg']
