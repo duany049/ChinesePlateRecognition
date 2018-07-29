@@ -24,7 +24,6 @@ from utils.visualization import draw_bounding_boxes
 
 from model.config import cfg
 from my_utils import sparse_tuple_from
-from my_utils import transform_for_ctc
 from my_utils import decode_sparse_tensor
 
 

@@ -18,10 +18,13 @@ cfg = __C
 #
 __C.TRAIN = edict()
 
+__C.TRAIN.INITIAL_LEARNING_RATE = 0.0001
+__C.TRAIN.DECAY_STEPS = 5000
+__C.TRAIN.LEARNING_DECAY_FACTOR = 0.9
 # Initial learning rate
 # __C.TRAIN.LEARNING_RATE = 0.001
 # TODO 为了测试才这么修改的,以后改回来
-__C.TRAIN.LEARNING_RATE = 0.00001
+__C.TRAIN.LEARNING_RATE = 0.0001
 
 # Momentum
 __C.TRAIN.MOMENTUM = 0.9
@@ -297,12 +300,34 @@ __C.MY = edict()
 __C.MY.TRAIN_RATIO = 0.8
 __C.MY.NUM_HIDDEN = 128
 __C.MY.NUM_LAYERS = 1
-__C.MY.NUM_CLASSES = 21 + 1 + 1
+# __C.MY.NUM_CLASSES = 21 + 1 + 1
 # 只识别部分，每次传入的imgs数目
-__C.MY.IMG_BATCH = 100
-__C.MY.MAX_ITERS = 40000
-__C.MY.WIDTH = 400
-__C.MY.HEIGTH = 300
+__C.MY.IMG_BATCH = 20
+__C.MY.MAX_ITERS = 100000
+__C.MY.WIDTH = 100
+__C.MY.HEIGTH = 30
+# __C.MY.MAX_TIMESTEP = 256
+__C.MY.MAX_TIMESTEP = 28
+__C.MY.SAVE_STEPS = 1000
+
+__C.MY.CHANNELS = 1
+
+# 一般是没有带O字母的车牌的
+__C.MY.CHARS = ["background", u"沪", u"京", u"津", u"渝", u"冀", u"晋", u"蒙", u"辽", u"吉", u"黑", u"苏", u"浙", u"皖", u"闽", u"赣", u"鲁",
+         u"豫", u"鄂", u"湘", u"粤", u"桂", u"琼", u"川", u"贵", u"云", u"藏", u"陕", u"甘", u"青", u"宁", u"新",
+         u"0", u"1", u"2", u"3", u"4", u"5", u"6", u"7", u"8", u"9",
+         u"A", u"B", u"C", u"D", u"E", u"F", u"G", u"H", u"J", u"K", u"L", u"M", u"N", u"O", u"P", u"Q", u"R", u"S",
+         u"T",
+         u"U", u"V", u"W", u"X", u"Y", u"Z",
+         u"港", u"学", u"使", u"警", u"澳", u"挂", u"军", u"北", u"南", u"广", u"沈", u"兰", u"成", u"济", u"海", u"民", u"航", u"空"]
+# 0 is reserved to space
+__C.MY.FIRST_INDEX = 1
+__C.MY.SPACE_TOKEN = '<space>'
+__C.MY.CTC_LABEL = list([__C.MY.SPACE_TOKEN] + __C.MY.CHARS)
+__C.MY.NUM_CHARS = len(__C.MY.CHARS)
+__C.MY.CTC_LABEL_TO_IND = dict(zip(__C.MY.CTC_LABEL, range(len(__C.MY.CTC_LABEL))))
+__C.MY.NUM_CLASSES = len(__C.MY.CHARS) + 1 + 1
+
 
 def get_output_dir(imdb, weights_filename):
     """Return the directory where experimental artifacts are placed.

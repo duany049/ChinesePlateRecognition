@@ -22,7 +22,6 @@ from utils.visualization import draw_bounding_boxes
 
 from model.config import cfg
 from my_utils import sparse_tuple_from
-from my_utils import transform_for_ctc
 from my_utils import decode_sparse_tensor
 
 
@@ -320,6 +319,7 @@ class Network(object):
             decoded, log_prob = tf.nn.ctc_beam_search_decoder(cls_logits, self.seq_len, merge_repeated=False)
             ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self._cls_targets))
             self._predict_layers['ctc_acc'] = ctc_acc
+            self._predict_layers['decoded'] = decoded
 
             # RCNN, bbox loss
             # bbox_pred = self._predict_layers['bbox_pred']
@@ -402,18 +402,22 @@ class Network(object):
         # targets = tf.sparse_placeholder(tf.int32)
 
         # 方式一: 使用fc7,shape为(batch_size, -1, 1), 最大时序为-1, feature为1
-        fc7_shape = tf.shape(fc7)
-        feature = tf.reshape(fc7, [fc7_shape[0], -1, 1])
+        # fc7_shape = tf.shape(fc7)
+        fc7_shape = fc7.get_shape()
+        # feature = tf.reshape(fc7, [fc7_shape[0], cfg.MY.MAX_TIMESTEP, 1])
+        print('dy test fc7 {}'.format(fc7_shape))
+        feature = tf.reshape(fc7, [fc7_shape[0], fc7_shape[1] * 4, -1])
         stack = rnn.MultiRNNCell([rnn.LSTMCell(cfg.MY.NUM_HIDDEN) for _ in range(cfg.MY.NUM_LAYERS)])
         outputs, _ = tf.nn.dynamic_rnn(stack, feature, self.seq_len, dtype=tf.float32)
         feature_shape = tf.shape(feature)
         batch_size, max_timesteps = feature_shape[0], feature_shape[1]
+        # (batch_size * max_timesteps, num_hidden)
         outputs = tf.reshape(outputs, [-1, cfg.MY.NUM_HIDDEN])
         W = tf.Variable(tf.truncated_normal([cfg.MY.NUM_HIDDEN, cfg.MY.NUM_CLASSES], name='lstm_w'))
         b = tf.Variable(tf.constant(0., shape=[cfg.MY.NUM_CLASSES]), name='lstm_b')
         logits = tf.matmul(outputs, W) + b
         # Reshaping back to the original shape
-        logits = tf.reshape(logits, [batch_size, -1, cfg.MY.NUM_CLASSES])
+        logits = tf.reshape(logits, [batch_size, max_timesteps, cfg.MY.NUM_CLASSES])
         # ctc使用下面这种形式(max_timesteps, batch_size, num_classes)
         logits = tf.transpose(logits, (1, 0, 2))
         self.ctc_decoded, ctc_cls_prob = tf.nn.ctc_beam_search_decoder(logits, self.seq_len, merge_repeated=False)
@@ -431,9 +435,8 @@ class Network(object):
         self._predict_layers["cls_logits"] = logits
         self._predict_layers['ctc_cls_prob'] = ctc_cls_prob
         # self._predict_layers["bbox_pred"] = bbox_pred
-        self.seq_len_value = np.asarray([4096] * 256, dtype=np.int32)
-        self.seq_len_test_value = np.asarray([4096] * 300, dtype=np.int32)
-        self._predict_layers["fc7_shape"] = fc7_shape
+        self.seq_len_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.MY.IMG_BATCH, dtype=np.int32)
+        self.seq_len_test_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.MY.IMG_BATCH, dtype=np.int32)
         # return cls_prob, bbox_pred
         # return logits, bbox_pred
         return logits
@@ -463,8 +466,9 @@ class Network(object):
         self._gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
         self._tag = tag
 
-        self._data = tf.placeholder(tf.float32, shape=[cfg.MY.IMG_BATCH, None, None, 3])
+        self._data = tf.placeholder(tf.float32, shape=[cfg.MY.IMG_BATCH, cfg.MY.WIDTH, cfg.MY.HEIGTH, cfg.MY.CHANNELS])
         self._cls_targets = tf.sparse_placeholder(tf.int32)
+        print('dy test clas targets: {}'.format(self._cls_targets))
 
         self._num_classes = num_classes
         self._mode = mode
@@ -554,9 +558,9 @@ class Network(object):
                                                                      feed_dict=feed_dict)
         # print('dy test ctc_decoded shape: {} - value: {} - target: {}'
         #       .format(np.array(ctc_decoded).shape, ctc_decoded, cls_targets))
-        print('==============cls targets====================')
+        # print('==============cls targets====================')
         # decode_sparse_tensor(cls_targets)
-        print('==============ctc decoded====================')
+        # print('==============ctc decoded====================')
         decode_sparse_tensor(ctc_decoded)
         return cls_score, cls_prob, bbox_pred, rois
 
@@ -567,16 +571,34 @@ class Network(object):
 
         return summary
 
+    def print_predict(self, dd, label):
+        detected_list = decode_sparse_tensor(dd)
+        original_list = decode_sparse_tensor(label)
+        true_numer = 0
+        if len(original_list) != len(detected_list):
+            print("len(original_list)", len(original_list), "len(detected_list)", len(detected_list),
+                  " test and detect length desn't match")
+            return
+        for idx, number in enumerate(original_list):
+            detect_number = detected_list[idx]
+            hit = (number == detect_number)
+            print(hit, number, "(", len(number), ") <-------> ", detect_number, "(", len(detect_number), ")")
+            if hit:
+                true_numer = true_numer + 1
+        print("Test Accuracy:", true_numer * 1.0 / len(original_list))
+
     def train_step_with_summary(self, sess, data, cls_targets, train_op, global_step):
         feed_dict = {self._data: data, self._cls_targets: cls_targets,
                      self.seq_len: self.seq_len_value}
-        loss_cls, summary, _, step, ctc_acc = sess.run([self._losses['ctc_cost'],
-                                               self._summary_op,
-                                               train_op,
-                                               global_step,
-                                               self._predict_layers['ctc_acc']],
-                                        feed_dict=feed_dict)
-        return loss_cls, summary, step, ctc_acc
+        loss_cls, _, step, ctc_acc, dd = sess.run([self._losses['ctc_cost'],
+                                                   # self._summary_op,
+                                                   train_op,
+                                                   global_step,
+                                                   self._predict_layers['ctc_acc'],
+                                                   self._predict_layers['decoded'][0]],
+                                                  feed_dict=feed_dict)
+        self.print_predict(dd, cls_targets)
+        return loss_cls, step, ctc_acc
 
     def train_step(self, sess, data, cls_targets, train_op, global_step):
         feed_dict = {self._data: data, self._cls_targets: cls_targets,

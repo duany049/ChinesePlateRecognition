@@ -22,7 +22,7 @@ class standard_car_plate(imdb):
         name = 'standard_car_plate_' + image_set
         imdb.__init__(self, name)
         self._image_set = image_set
-        self._data_path = _get_default_path()
+        self._data_path = self._get_default_path()
         self._classes = ('__backgroud__', 'plate')
         # 构成字典{'__background__':'0','plate':'1'}
         self._class_to_ind = dict(zip(self._classes, range(len(self._classes))))
@@ -95,10 +95,10 @@ class standard_car_plate(imdb):
         for ix, obj in enumerate(objs):
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
-            x2 = float(bbox.find('xmax').text) - 1
-            y2 = float(bbox.find('ymax').text) - 1
+            x1 = float(bbox.find('xmin').text)
+            y1 = float(bbox.find('ymin').text)
+            x2 = float(bbox.find('xmax').text)
+            y2 = float(bbox.find('ymax').text)
             cls = self._class_to_ind[obj.find('name').text.lower().strip()]
             boxes[ix, :] = [x1, y1, x2, y2]
             gt_classes[ix] = cls
@@ -131,6 +131,6 @@ class standard_car_plate(imdb):
 
 if __name__=='__main__':
     # 执行test部分
-    standard_car_plate = standard_car_plate()
+    standard_car_plate = standard_car_plate('train')
     roidb = standard_car_plate.gt_roidb()
     print(roidb)
