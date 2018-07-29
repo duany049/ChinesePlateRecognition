@@ -49,7 +49,10 @@ class Vgg16(Network):
             fc7 = slim.fully_connected(fc6, 4096, scope='fc7')
             if is_training:
                 fc7 = slim.dropout(fc7, keep_prob=0.5, is_training=True, scope='dropout7')
-        return fc7
+            # TODO 可以改成统一用conv试试效果
+            conv = slim.conv2d(pool5, 128, [1, 1], trainable=True, scope='conv6_extra')
+            conv = slim.conv2d(conv, 32, [1, 1], trainable=True, scope='conv7_extra')
+        return fc7, conv
 
     def get_variables_to_restore(self, variables, var_keep_dic):
         variables_to_restore = []

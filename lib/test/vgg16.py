@@ -24,8 +24,8 @@ class Vgg16(Network):
         # 统一scope用于区分不同的特征提取网络的参数
         with tf.variable_scope(self._scope, self._scope, reuse=reuse):
             # 参数从预训练模型中加载，只微调后面几层参数
-            # net = slim.repeat(self._data, 2, slim.conv2d, 64, [3, 3], trainable=False, scope='conv1')
-            net = slim.repeat(self._data, 2, slim.conv2d, 64, [3, 3], trainable=True, scope='conv1')
+            net = slim.repeat(self._data, 2, slim.conv2d, 64, [3, 3], trainable=False, scope='conv1')
+            # net = slim.repeat(self._data, 2, slim.conv2d, 64, [3, 3], trainable=True, scope='conv1')
             net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
             net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], trainable=False, scope='conv2')
             net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool2')
@@ -71,7 +71,6 @@ class Vgg16(Network):
                     v.name == (self._scope + '/fc7/weights:0') or \
                     v.name == (self._scope + '/conv6_extra/weights:0') or \
                     v.name == (self._scope + '/fc6_extra/weights:0') or \
-                    v.name == (self._scope + '/conv1/conv1_1/weights:0') or \
                     v.name == (self._scope + 'conv7_extra/weight:0'):
                 # 结构已经改变,赋值此layer的权值
                 # self._variables_to_transform[v.name] = v

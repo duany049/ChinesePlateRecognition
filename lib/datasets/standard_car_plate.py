@@ -23,11 +23,12 @@ class standard_car_plate(imdb):
         imdb.__init__(self, name)
         self._image_set = image_set
         self._data_path = self._get_default_path()
+        # TODO 使用车牌的label
         self._classes = ('__backgroud__', 'plate')
         # 构成字典{'__background__':'0','plate':'1'}
         self._class_to_ind = dict(zip(self._classes, range(len(self._classes))))
         self._image_ext = '.jpg'
-        # 读取train.txt，获取图片名称（该图片名称没有后缀.jpg）
+        # 读取Main中对应数据集的txt文件，获取图片名称（该图片名称没有后缀.jpg）
         self._image_index = self._load_image_set_names()
         self._roidb_handler = self.gt_roidb
         self.config = {'cleanup': True,
@@ -40,8 +41,14 @@ class standard_car_plate(imdb):
         """
         Construct an image path from the image's "index" identifier.
         """
+        return self.image_path_from_index(self._image_index[index])
+
+    def image_path_from_index(self, name):
+        """
+        Construct an image path from the image's "index" identifier.
+        """
         image_path = os.path.join(self._data_path, 'JPEGImages',
-                                  index + self._image_ext)
+                                  name + self._image_ext)
         assert os.path.exists(image_path), \
             'Path does not exist: {}'.format(image_path)
         return image_path
@@ -90,6 +97,8 @@ class standard_car_plate(imdb):
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
         # "Seg" area for pascal is just the box area
         seg_areas = np.zeros((num_objs), dtype=np.float32)
+        # TODO 实现labels
+        labels = np.zeros((num_objs))
 
         # Load object bounding boxes into a data frame.
         for ix, obj in enumerate(objs):
@@ -104,6 +113,7 @@ class standard_car_plate(imdb):
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
+
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
         return {'boxes': boxes,

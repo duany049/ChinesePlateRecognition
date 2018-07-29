@@ -405,7 +405,6 @@ class Network(object):
         # fc7_shape = tf.shape(fc7)
         fc7_shape = fc7.get_shape()
         # feature = tf.reshape(fc7, [fc7_shape[0], cfg.MY.MAX_TIMESTEP, 1])
-        print('dy test fc7 {}'.format(fc7_shape))
         feature = tf.reshape(fc7, [fc7_shape[0], fc7_shape[1] * 4, -1])
         stack = rnn.MultiRNNCell([rnn.LSTMCell(cfg.MY.NUM_HIDDEN) for _ in range(cfg.MY.NUM_LAYERS)])
         outputs, _ = tf.nn.dynamic_rnn(stack, feature, self.seq_len, dtype=tf.float32)
@@ -468,7 +467,6 @@ class Network(object):
 
         self._data = tf.placeholder(tf.float32, shape=[cfg.MY.IMG_BATCH, cfg.MY.WIDTH, cfg.MY.HEIGTH, cfg.MY.CHANNELS])
         self._cls_targets = tf.sparse_placeholder(tf.int32)
-        print('dy test clas targets: {}'.format(self._cls_targets))
 
         self._num_classes = num_classes
         self._mode = mode

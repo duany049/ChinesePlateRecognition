@@ -298,7 +298,7 @@ __C.RPN_CHANNELS = 512
 # defined by myself
 __C.MY = edict()
 __C.MY.TRAIN_RATIO = 0.8
-__C.MY.NUM_HIDDEN = 128
+__C.MY.NUM_HIDDEN = 256
 __C.MY.NUM_LAYERS = 1
 # __C.MY.NUM_CLASSES = 21 + 1 + 1
 # 只识别部分，每次传入的imgs数目
@@ -310,7 +310,7 @@ __C.MY.HEIGTH = 30
 __C.MY.MAX_TIMESTEP = 28
 __C.MY.SAVE_STEPS = 1000
 
-__C.MY.CHANNELS = 1
+__C.MY.CHANNELS = 3
 
 # 一般是没有带O字母的车牌的
 __C.MY.CHARS = ["background", u"沪", u"京", u"津", u"渝", u"冀", u"晋", u"蒙", u"辽", u"吉", u"黑", u"苏", u"浙", u"皖", u"闽", u"赣", u"鲁",

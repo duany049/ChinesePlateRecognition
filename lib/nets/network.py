@@ -1,5 +1,5 @@
 # coding=utf-8
-#from __future__ import absolute_import
+# from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
@@ -12,8 +12,6 @@ from tensorflow.python.framework.sparse_tensor import SparseTensor
 from tensorflow.python.framework.sparse_tensor import SparseTensorValue
 
 import numpy as np
-
-
 
 from layer_utils.snippets import generate_anchors_pre, generate_anchors_pre_tf
 from layer_utils.proposal_layer import proposal_layer, proposal_layer_tf
@@ -258,12 +256,12 @@ class Network(object):
             else:
                 raise NotImplementedError
 
-        fc7 = self._full_connect_layer(pool5, is_training)
+        fc7, conv7 = self._full_connect_layer(pool5, is_training)
         with tf.variable_scope(self._scope, self._scope):
             # region classification
             # cls_prob, bbox_pred = self._region_classification(fc7, is_training,
             #                                                   initializer, initializer_bbox)
-            cls_logits, bbox_pred = self._region_classification(fc7, is_training,
+            cls_logits, bbox_pred = self._region_classification(fc7, conv7, is_training,
                                                                 initializer, initializer_bbox)
 
         self._score_summaries.update(self._predict_layers)
@@ -312,20 +310,18 @@ class Network(object):
 
             # 使用ctc loss
             cls_logits = self._predict_layers["cls_logits"]
-            # 暂时用不到这个,label是从其他数据计算过来的
-            # cls_targets = self._predict_layers["cls_targets"]
-            label = tf.reshape(self._proposal_targets['labels'], [-1])
 
-            indices, values, dense_shape = tf.py_func(sparse_tuple_from, [label], [tf.int64, tf.int32, tf.int64])
-            self.cls_targets = tf.SparseTensor(indices, values, dense_shape)
-            print("is sparse tensor: {} - {} ", isinstance(self.cls_targets, SparseTensorValue),
-                  isinstance(self.cls_targets, SparseTensor))
-            # cls_targets = sparse_tuple_from(label)
-            ctc_loss = tf.nn.ctc_loss(self.cls_targets, cls_logits, self.seq_len)
+            # label = tf.reshape(self._proposal_targets['labels'], [-1])
+            # indices, values, dense_shape = tf.py_func(sparse_tuple_from, [label], [tf.int64, tf.int32, tf.int64])
+            # self.cls_targets = tf.SparseTensor(indices, values, dense_shape)
+            # print("is sparse tensor: {} - {} ", isinstance(self.cls_targets, SparseTensorValue),
+            #       isinstance(self.cls_targets, SparseTensor))
+            ctc_loss = tf.nn.ctc_loss(self._cls_targets, cls_logits, self.seq_len)
             ctc_cost = tf.reduce_mean(ctc_loss)
             decoded, log_prob = tf.nn.ctc_beam_search_decoder(cls_logits, self.seq_len, merge_repeated=False)
-            ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self.cls_targets))
+            ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self._cls_targets))
             self._predict_layers['ctc_acc'] = ctc_acc
+            self._predict_layers['decoded'] = decoded
 
             # RCNN, bbox loss
             bbox_pred = self._predict_layers['bbox_pred']
@@ -389,7 +385,7 @@ class Network(object):
 
         return rois
 
-    def _region_classification(self, fc7, is_training, initializer, initializer_bbox):
+    def _region_classification(self, fc7, conv7, is_training, initializer, initializer_bbox):
         # cls_score = slim.fully_connected(fc7, self._num_classes,
         #                                  weights_initializer=initializer,
         #                                  trainable=is_training,
@@ -402,13 +398,10 @@ class Network(object):
 
         # size为batch_size的以为数组,元素是每个待预测序列的长度
         self.seq_len = tf.placeholder(tf.int32, [None])
-        # Here we use sparse_placeholder that will generate a
-        # SparseTensor required by ctc_loss op.
-        targets = tf.sparse_placeholder(tf.int32)
 
-        # 方式一: 使用fc7,shape为(batch_size, -1, 1), 最大时序为-1, feature为1
-        fc7_shape = tf.shape(fc7)
-        feature = tf.reshape(fc7, [fc7_shape[0], -1, 1])
+        # 注意class和label chars分开
+        conv7_shape = conv7.get_shape()
+        feature = tf.reshape(conv7, [conv7_shape[0], conv7_shape[1] * 4, -1])
         stack = rnn.MultiRNNCell([rnn.LSTMCell(cfg.MY.NUM_HIDDEN) for _ in range(cfg.MY.NUM_LAYERS)])
         outputs, _ = tf.nn.dynamic_rnn(stack, feature, self.seq_len, dtype=tf.float32)
         feature_shape = tf.shape(feature)
@@ -418,12 +411,10 @@ class Network(object):
         b = tf.Variable(tf.constant(0., shape=[cfg.MY.NUM_CLASSES]), name='lstm_b')
         logits = tf.matmul(outputs, W) + b
         # Reshaping back to the original shape
-        logits = tf.reshape(logits, [batch_size, -1, cfg.MY.NUM_CLASSES])
+        logits = tf.reshape(logits, [batch_size, max_timesteps, cfg.MY.NUM_CLASSES])
         # ctc使用下面这种形式(max_timesteps, batch_size, num_classes)
         logits = tf.transpose(logits, (1, 0, 2))
         self.ctc_decoded, ctc_cls_prob = tf.nn.ctc_beam_search_decoder(logits, self.seq_len, merge_repeated=False)
-
-        # 方式二: 使用pool5,转换shape为(batch_size, width, height * channel)
 
         bbox_pred = slim.fully_connected(fc7, self._num_classes * 4,
                                          weights_initializer=initializer_bbox,
@@ -436,9 +427,8 @@ class Network(object):
         self._predict_layers["cls_logits"] = logits
         self._predict_layers['ctc_cls_prob'] = ctc_cls_prob
         self._predict_layers["bbox_pred"] = bbox_pred
-        self.seq_len_value = np.asarray([4096] * 256, dtype=np.int32)
-        self.seq_len_test_value = np.asarray([4096] * 300, dtype=np.int32)
-        self._predict_layers["fc7_shape"] = fc7_shape
+        self.seq_len_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.MY.IMG_BATCH, dtype=np.int32)
+        self.seq_len_test_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.MY.IMG_BATCH, dtype=np.int32)
         # return cls_prob, bbox_pred
         return logits, bbox_pred
 
@@ -467,6 +457,8 @@ class Network(object):
         self._im_info = tf.placeholder(tf.float32, shape=[3])
         self._gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
         self._tag = tag
+
+        self._cls_targets = tf.sparse_placeholder(tf.int32)
 
         self._num_classes = num_classes
         self._mode = mode
@@ -562,7 +554,7 @@ class Network(object):
         # print('dy test ctc_decoded shape: {} - value: {} - target: {}'
         #       .format(np.array(ctc_decoded).shape, ctc_decoded, cls_targets))
         print('==============cls targets====================')
-        #decode_sparse_tensor(cls_targets)
+        # decode_sparse_tensor(cls_targets)
         print('==============ctc decoded====================')
         decode_sparse_tensor(ctc_decoded)
         return cls_score, cls_prob, bbox_pred, rois
@@ -574,23 +566,25 @@ class Network(object):
 
         return summary
 
-    def train_step(self, sess, data, cls_target, train_op):
-        feed_dict = {self._data: data, self._cls_target: cls_target,
-                     self.seq_len: self.seq_len_value}
+    def train_step(self, sess, blobs, cls_targets, train_op):
+        feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
+                     self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
+                     self._cls_targets: cls_targets}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
-                                                                                     self._losses['rpn_loss_box'],
-                                                                                     # self._losses['cross_entropy'],
-                                                                                     self._losses['ctc_cost'],
-                                                                                     self._losses['loss_box'],
-                                                                                     self._losses['total_loss'],
-                                                                                     train_op],
-                                                                                     # self._predict_layers['ctc_acc']],
-                                                                                    feed_dict=feed_dict)
+                                                                            self._losses['rpn_loss_box'],
+                                                                            # self._losses['cross_entropy'],
+                                                                            self._losses['ctc_cost'],
+                                                                            self._losses['loss_box'],
+                                                                            self._losses['total_loss'],
+                                                                            train_op],
+                                                                           # self._predict_layers['ctc_acc']],
+                                                                           feed_dict=feed_dict)
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss
 
-    def train_step_with_summary(self, sess, data, cls_target, train_op):
-        feed_dict = {self._data: data, self._cls_target: cls_target,
-                     self.seq_len: self.seq_len_value}
+    def train_step_with_summary(self, sess, blobs, cls_targets, train_op):
+        feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
+                     self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
+                     self._cls_targets: cls_targets}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _ = sess.run(
             [self._losses["rpn_cross_entropy"],
              self._losses['rpn_loss_box'],
@@ -600,7 +594,7 @@ class Network(object):
              self._losses['total_loss'],
              self._summary_op,
              train_op],
-             # self._predict_layers['ctc_acc']],
+            # self._predict_layers['ctc_acc']],
             feed_dict=feed_dict)
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary
 
