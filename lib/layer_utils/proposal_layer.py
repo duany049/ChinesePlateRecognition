@@ -14,8 +14,11 @@ from model.bbox_transform import bbox_transform_inv, clip_boxes, bbox_transform_
 from model.nms_wrapper import nms
 
 def proposal_layer(rpn_cls_prob, rpn_bbox_pred, im_info, cfg_key, _feat_stride, anchors, num_anchors):
-  """A simplified version compared to fast/er RCNN
-     For details please see the technical report
+  """
+  1,根据rpn_bbox_pred对anchor进行微调
+  2,根据预测分数选前pre_nms_topN个anchor
+  3,进行nms非极大值抑制处理
+  4,对非极大值抑制处理后的数据,取前post_nms_topN个推荐框
   """
   if type(cfg_key) == bytes:
       cfg_key = cfg_key.decode('utf-8')

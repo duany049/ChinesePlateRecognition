@@ -356,7 +356,9 @@ class Network(object):
                                     padding='VALID', activation_fn=None, scope='rpn_cls_score')
         # change it so that the score has 2 as its channel size
         rpn_cls_score_reshape = self._reshape_layer(rpn_cls_score, 2, 'rpn_cls_score_reshape')
+        # 每个anchor前景和背景的概率
         rpn_cls_prob_reshape = self._softmax_layer(rpn_cls_score_reshape, "rpn_cls_prob_reshape")
+        # 每个anchor被预测为前景还是背景
         rpn_cls_pred = tf.argmax(tf.reshape(rpn_cls_score_reshape, [-1, 2]), axis=1, name="rpn_cls_pred")
         rpn_cls_prob = self._reshape_layer(rpn_cls_prob_reshape, self._num_anchors * 2, "rpn_cls_prob")
         rpn_bbox_pred = slim.conv2d(rpn, self._num_anchors * 4, [1, 1], trainable=is_training,
@@ -458,6 +460,7 @@ class Network(object):
         self._gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
         self._tag = tag
 
+        self._gt_labels = tf.placeholder(tf.int32)
         self._cls_targets = tf.sparse_placeholder(tf.int32)
 
         self._num_classes = num_classes
@@ -569,7 +572,7 @@ class Network(object):
     def train_step(self, sess, blobs, cls_targets, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
-                     self._cls_targets: cls_targets}
+                     self._gt_labels: blobs['gt_labels'], self._cls_targets: cls_targets}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                             self._losses['rpn_loss_box'],
                                                                             # self._losses['cross_entropy'],
@@ -584,7 +587,7 @@ class Network(object):
     def train_step_with_summary(self, sess, blobs, cls_targets, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
-                     self._cls_targets: cls_targets}
+                     self._gt_labels: blobs['gt_labels'], self._cls_targets: cls_targets}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _ = sess.run(
             [self._losses["rpn_cross_entropy"],
              self._losses['rpn_loss_box'],

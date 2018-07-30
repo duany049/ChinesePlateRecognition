@@ -22,17 +22,18 @@ class Vgg16(Network):
         """
         # 统一scope用于区分不同的特征提取网络的参数
         with tf.variable_scope(self._scope, self._scope, reuse=reuse):
-            # 参数从预训练模型中加载，只微调后面几层参数
-            net = slim.repeat(self._image, 2, slim.conv2d, 64, [3, 3], trainable=False, scope='conv1')
-            net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
-            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], trainable=False, scope='conv2')
-            net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool2')
-            net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], trainable=is_training, scope='conv3')
-            net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool3')
-            net = slim.repeat(net, 3    , slim.conv2d, 512, [3, 3], trainable=is_training, scope='conv4')
-            net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool4')
-            net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], trainable=is_training, scope='conv5')
-            # net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool5')
+            with slim.arg_scope([slim.conv2d], normalizer_fn=slim.batch_norm):
+                # 参数从预训练模型中加载，只微调后面几层参数
+                net = slim.repeat(self._image, 2, slim.conv2d, 64, [3, 3], trainable=False, scope='conv1')
+                net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool1')
+                net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], trainable=False, scope='conv2')
+                net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool2')
+                net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], trainable=is_training, scope='conv3')
+                net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool3')
+                net = slim.repeat(net, 3    , slim.conv2d, 512, [3, 3], trainable=is_training, scope='conv4')
+                net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool4')
+                net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], trainable=is_training, scope='conv5')
+                # net = slim.max_pool2d(net, [2, 2], padding='SAME', scope='pool5')
         self._act_summaries.append(net)
         self._child_layers['head'] = net
         return net
@@ -42,16 +43,17 @@ class Vgg16(Network):
         定义全连接网络.
         """
         with tf.variable_scope(self._scope, self._scope, reuse=reuse):
-            pool5_flatten = slim.flatten(pool5, scope='flatten')
-            fc6 = slim.fully_connected(pool5_flatten, 4096, scope='fc6')
-            if is_training:
-                fc6 = slim.dropout(fc6, keep_prob=0.5, is_training=True, scope='dropout6')
-            fc7 = slim.fully_connected(fc6, 4096, scope='fc7')
-            if is_training:
-                fc7 = slim.dropout(fc7, keep_prob=0.5, is_training=True, scope='dropout7')
-            # TODO 可以改成统一用conv试试效果
-            conv = slim.conv2d(pool5, 128, [1, 1], trainable=True, scope='conv6_extra')
-            conv = slim.conv2d(conv, 32, [1, 1], trainable=True, scope='conv7_extra')
+            with slim.arg_scope([slim.conv2d, slim.fully_connected], normalizer_fn=slim.batch_norm):
+                pool5_flatten = slim.flatten(pool5, scope='flatten')
+                fc6 = slim.fully_connected(pool5_flatten, 4096, scope='fc6')
+                if is_training:
+                    fc6 = slim.dropout(fc6, keep_prob=0.5, is_training=True, scope='dropout6')
+                fc7 = slim.fully_connected(fc6, 4096, scope='fc7')
+                if is_training:
+                    fc7 = slim.dropout(fc7, keep_prob=0.5, is_training=True, scope='dropout7')
+                # TODO 可以改成统一用conv试试效果
+                conv = slim.conv2d(pool5, 128, [1, 1], trainable=True, scope='conv6_extra')
+                conv = slim.conv2d(conv, 32, [1, 1], trainable=True, scope='conv7_extra')
         return fc7, conv
 
     def get_variables_to_restore(self, variables, var_keep_dic):
