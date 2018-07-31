@@ -103,7 +103,6 @@ if __name__ == '__main__':
 
   # train set
   imdb, roidb = combined_roidb(args.imdb_name)
-  print('dy test ====notify==== imdb name: {} - roidb: {}'.format(imdb, roidb))
   print('{:d} roidb entries'.format(len(roidb)))
 
   # output directory where the models are saved
