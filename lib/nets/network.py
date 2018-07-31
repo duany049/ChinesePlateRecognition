@@ -600,7 +600,7 @@ class Network(object):
                                                                            feed_dict=feed_dict)
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss
 
-    def train_step_with_summary(self, sess, blobs, cls_targets, train_op):
+    def train_step_with_summary(self, sess, blobs, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
                      self._cls_content: blobs['gt_labels']}
