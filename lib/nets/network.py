@@ -188,19 +188,30 @@ class Network(object):
 
     def _proposal_target_layer(self, rois, roi_scores, name):
         with tf.variable_scope(name) as scope:
-            rois, roi_scores, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights = tf.py_func(
+            rois, roi_scores, labels, cls_content, bbox_targets, bbox_inside_weights, bbox_outside_weights = tf.py_func(
                 proposal_target_layer,
-                [rois, roi_scores, self._gt_boxes, self._num_classes],
-                [tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32],
+                [rois, roi_scores, self._gt_boxes, self._cls_content, self._num_classes],
+                [tf.float32, tf.float32, tf.float32, tf.int32, tf.float32, tf.float32, tf.float32],
                 name="proposal_target")
 
             rois.set_shape([cfg.TRAIN.BATCH_SIZE, 5])
             roi_scores.set_shape([cfg.TRAIN.BATCH_SIZE])
-            # labels是k+1类别
+            # 此labels为faster rcnn原labels,是k+1类别和rpn_label(前景背景)不一样,
             labels.set_shape([cfg.TRAIN.BATCH_SIZE, 1])
+            # 此labels是我设置的label,为车牌内容
+            cls_content.set_shape([cfg.TRAIN.BATCH_SIZE, 7])
             bbox_targets.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
             bbox_inside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
             bbox_outside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
+
+            # print('dy test cls content: {}'.format(cls_content))
+            # self._sparse_cls_content = \
+            #     tf.py_func(sparse_tuple_from, [cls_content], [tf.int32], name='sparse_cls_content')
+            self._sparse_cls_content = cls_content
+
+            # self._sparse_cls_content = sparse_tuple_from(cls_content, dtype=np.int32)
+            # print('============sparse action=====================')
+            # print('dy test sparse cls content: {}'.format(self._sparse_cls_content))
 
             self._proposal_targets['rois'] = rois
             self._proposal_targets['labels'] = tf.to_int32(labels, name="to_int32")
@@ -304,7 +315,7 @@ class Network(object):
 
             # RCNN, class loss
             # cls_score = self._predict_layers["cls_score"]
-            # label = tf.reshape(self._proposal_targets["labels"], [-1])
+            # label = tf.reshape(self._proposal_targets['labels'], [-1])
             # cross_entropy = tf.reduce_mean(
             #     tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label))
 
@@ -316,10 +327,14 @@ class Network(object):
             # self.cls_targets = tf.SparseTensor(indices, values, dense_shape)
             # print("is sparse tensor: {} - {} ", isinstance(self.cls_targets, SparseTensorValue),
             #       isinstance(self.cls_targets, SparseTensor))
-            ctc_loss = tf.nn.ctc_loss(self._cls_targets, cls_logits, self.seq_len)
+
+            idx = tf.where(tf.not_equal(self._sparse_cls_content, 0))
+            self._sparse_cls_content = tf.SparseTensor(idx, tf.gather_nd(self._sparse_cls_content, idx),
+                                                       self._sparse_cls_content.get_shape())
+            ctc_loss = tf.nn.ctc_loss(self._sparse_cls_content, cls_logits, self.seq_len)
             ctc_cost = tf.reduce_mean(ctc_loss)
             decoded, log_prob = tf.nn.ctc_beam_search_decoder(cls_logits, self.seq_len, merge_repeated=False)
-            ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self._cls_targets))
+            ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self._sparse_cls_content))
             self._predict_layers['ctc_acc'] = ctc_acc
             self._predict_layers['decoded'] = decoded
 
@@ -460,8 +475,9 @@ class Network(object):
         self._gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
         self._tag = tag
 
-        self._gt_labels = tf.placeholder(tf.int32)
-        self._cls_targets = tf.sparse_placeholder(tf.int32)
+        # TODO 时间紧迫,先实现简单版本,固定长度为7,以后抽时间再实现任意长度
+        self._cls_content = tf.placeholder(tf.int32, shape=[None, 7])
+        # self._sparse_cls_content = tf.sparse_placeholder(tf.int32)
 
         self._num_classes = num_classes
         self._mode = mode
@@ -569,10 +585,10 @@ class Network(object):
 
         return summary
 
-    def train_step(self, sess, blobs, cls_targets, train_op):
+    def train_step(self, sess, blobs, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
-                     self._gt_labels: blobs['gt_labels'], self._cls_targets: cls_targets}
+                     self._cls_content: blobs['gt_labels']}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                             self._losses['rpn_loss_box'],
                                                                             # self._losses['cross_entropy'],
@@ -587,7 +603,7 @@ class Network(object):
     def train_step_with_summary(self, sess, blobs, cls_targets, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
-                     self._gt_labels: blobs['gt_labels'], self._cls_targets: cls_targets}
+                     self._cls_content: blobs['gt_labels']}
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _ = sess.run(
             [self._losses["rpn_cross_entropy"],
              self._losses['rpn_loss_box'],

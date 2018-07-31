@@ -16,7 +16,13 @@ from utils.cython_bbox import bbox_overlaps
 from model.bbox_transform import bbox_transform
 
 def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, _feat_stride, all_anchors, num_anchors):
-  """Same as the anchor target layer in original Fast/er RCNN """
+  """
+  1,保留尺寸在不过超出原图片_allowed_border的anchors
+  2,通过anchor对gt的最大overlaps的值和每个gt的overlaps最大值对应的anchor来对anchor进行前景和背景label确认
+  3,RPN_FG_FRACTION和RPN_BATCHSIZE,舍弃多余的前景和背景
+  4,返回对anchor回归框标准的调整值(target_dx,target_dy,target_dw,target_dh)
+  5,
+  """
   A = num_anchors
   total_anchors = all_anchors.shape[0]
   K = total_anchors / num_anchors
@@ -48,10 +54,13 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, _feat_stride, all_anch
     np.ascontiguousarray(anchors, dtype=np.float),
     np.ascontiguousarray(gt_boxes, dtype=np.float))
   argmax_overlaps = overlaps.argmax(axis=1)
+  # 对于anchor来说,和gt最大的overlaps
   max_overlaps = overlaps[np.arange(len(inds_inside)), argmax_overlaps]
   gt_argmax_overlaps = overlaps.argmax(axis=0)
+  # 对于每个gt来说,和anchor最大的overlaps
   gt_max_overlaps = overlaps[gt_argmax_overlaps,
                              np.arange(overlaps.shape[1])]
+  # gt_max_overlaps每个元素对应0轴上的位置
   gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
 
   if not cfg.TRAIN.RPN_CLOBBER_POSITIVES:
@@ -86,6 +95,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, _feat_stride, all_anch
     labels[disable_inds] = -1
 
   bbox_targets = np.zeros((len(inds_inside), 4), dtype=np.float32)
+  # 返回对anchor回归框标准的调整值(target_dx,target_dy,target_dw,target_dh)
   bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])
 
   bbox_inside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)

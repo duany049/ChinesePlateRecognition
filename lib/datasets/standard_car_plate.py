@@ -97,8 +97,8 @@ class standard_car_plate(imdb):
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
         # "Seg" area for pascal is just the box area
         seg_areas = np.zeros((num_objs), dtype=np.float32)
-        # TODO 如果有问题可以再试试固定长度
-        labels = []
+        # TODO 时间紧迫,先实现简单版本,固定长度为7,以后抽时间再实现任意长度
+        labels = np.empty((num_objs, 7), dtype=np.int32)
 
         # Load object bounding boxes into a data frame.
         for ix, obj in enumerate(objs):
@@ -114,8 +114,7 @@ class standard_car_plate(imdb):
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
             gt_label = [cfg.MY.CTC_LABEL_TO_IND[element] for element in obj.find('label').text.upper().strip()]
-            labels.append(gt_label)
-        labels = np.array(labels)
+            labels[ix, :] = gt_label
         print('dy test labels: {}'.format(labels))
         overlaps = scipy.sparse.csr_matrix(overlaps)
         return {'boxes': boxes,
@@ -140,10 +139,3 @@ class standard_car_plate(imdb):
         Return the default path where car plate is expected to be installed.
         """
         return os.path.join(cfg.DATA_DIR, 'CarPlate', 'standard_data')
-
-
-if __name__ == '__main__':
-    # 执行test部分
-    standard_car_plate = standard_car_plate('train')
-    roidb = standard_car_plate.gt_roidb()
-    print(roidb)

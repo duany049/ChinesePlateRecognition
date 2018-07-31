@@ -282,7 +282,7 @@ if __name__ == '__main__':
     pretrained_model = os.path.join('..', '..', 'data/imagenet_weights/vgg16.ckpt')
     # model_name = 'test_car_plate'
     # test for change full connect
-    model_name = 'test_car_plate_2'
+    model_name = 'test_car_plate'
     output_dir = os.path.join('..', '..', 'output/vgg16', model_name)
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)

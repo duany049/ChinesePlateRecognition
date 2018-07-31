@@ -50,6 +50,7 @@ def get_minibatch(roidb, num_classes):
     dtype=np.float32)
   # 只有stantard_car_plate数据集有这个属性, todo 验证有必要加gt_indes么？不应该都是前景么？
   gt_labels = np.empty((len(gt_inds)), dtype=np.int32)
+  print('dy test roidb[0]: ', roidb[0])
   gt_labels[:] = roidb[0]['gt_labels'][gt_inds]
   blobs['gt_labels'] = gt_labels
   print('dy test blobs gt_labels: {}'.format(blobs['gt_labels']))
