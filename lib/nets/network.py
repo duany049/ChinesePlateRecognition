@@ -606,20 +606,40 @@ class Network(object):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
                      self._cls_content: blobs['gt_labels']}
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, _ = sess.run(
+        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, ctc_acc, dd, cls_content, _ = sess.run(
             [self._losses["rpn_cross_entropy"],
              self._losses['rpn_loss_box'],
              # self._losses['cross_entropy'],
              self._losses['ctc_cost'],
              self._losses['loss_box'],
              self._losses['total_loss'],
+             self._predict_layers['ctc_acc'],
+             self._predict_layers['decoded'][0],
+             self._cls_content,
              self._summary_op,
              train_op],
-            # self._predict_layers['ctc_acc']],
             feed_dict=feed_dict)
+        print('dy test dd: {} - cls_content: {}'.format(dd, cls_content))
+        # self.print_predict(dd, cls_targets)
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary
 
     def train_step_no_return(self, sess, blobs, train_op):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes']}
         sess.run([train_op], feed_dict=feed_dict)
+
+    def print_predict(self, dd, label):
+        detected_list = decode_sparse_tensor(dd)
+        original_list = decode_sparse_tensor(label)
+        true_numer = 0
+        if len(original_list) != len(detected_list):
+            print("len(original_list)", len(original_list), "len(detected_list)", len(detected_list),
+                  " test and detect length desn't match")
+            return
+        for idx, number in enumerate(original_list):
+            detect_number = detected_list[idx]
+            hit = (number == detect_number)
+            print(hit, number, "(", len(number), ") <-------> ", detect_number, "(", len(detect_number), ")")
+            if hit:
+                true_numer = true_numer + 1
+        print("Test Accuracy:", true_numer * 1.0 / len(original_list))
