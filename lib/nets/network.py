@@ -199,6 +199,7 @@ class Network(object):
             # 此labels为faster rcnn原labels,是k+1类别和rpn_label(前景背景)不一样,
             labels.set_shape([cfg.TRAIN.BATCH_SIZE, 1])
             # 此labels是我设置的label,为车牌内容
+            print('dy test ======notify======== rois shape: ', rois.get_shape())
             print('dy test ======notify======== cls content shape: ', cls_content.get_shape())
             cls_content.set_shape([cfg.TRAIN.BATCH_SIZE, 7])
             bbox_targets.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
@@ -262,11 +263,9 @@ class Network(object):
             self._anchor_component()
             # region proposal network
             rois = self._region_proposal(net_conv, is_training, initializer)
-            print('dy test =======notify======= rois shape: ', rois.get_shape())
             # region of interest pooling
             if cfg.POOLING_MODE == 'crop':
                 pool5 = self._crop_pool_layer(net_conv, rois, "pool5")
-                print('dy test =======notify======= pool5 shape: ', pool5.get_shape())
             else:
                 raise NotImplementedError
 
@@ -583,7 +582,8 @@ class Network(object):
 
     def get_summary(self, sess, blobs):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
-                     self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value}
+                     self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
+                     self._cls_content: blobs['gt_labels']}
         summary = sess.run(self._summary_op_val, feed_dict=feed_dict)
 
         return summary
