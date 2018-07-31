@@ -337,7 +337,7 @@ class Network(object):
             decoded, log_prob = tf.nn.ctc_beam_search_decoder(cls_logits, self.seq_len, merge_repeated=False)
             ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self._sparse_cls_content))
             self._predict_layers['ctc_acc'] = ctc_acc
-            self._predict_layers['decoded'] = decoded
+            self._ctc_decoded = decoded
 
             # RCNN, bbox loss
             bbox_pred = self._predict_layers['bbox_pred']
@@ -598,7 +598,6 @@ class Network(object):
                                                                             self._losses['loss_box'],
                                                                             self._losses['total_loss'],
                                                                             train_op],
-                                                                           # self._predict_layers['ctc_acc']],
                                                                            feed_dict=feed_dict)
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss
 
@@ -614,7 +613,7 @@ class Network(object):
              self._losses['loss_box'],
              self._losses['total_loss'],
              self._predict_layers['ctc_acc'],
-             self._predict_layers['decoded'][0],
+             self._ctc_decoded[0],
              self._cls_content,
              self._summary_op,
              train_op],
