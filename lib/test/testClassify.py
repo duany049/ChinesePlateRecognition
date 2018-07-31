@@ -126,7 +126,6 @@ class SolverWrapper(object):
                 #                                                                train_batch_labels.shape))
                 cls_targets = sparse_tuple_from(train_batch_labels)
 
-                print('dy test cls_targets =============: ', cls_targets)
                 now = time.time()
                 if now - last_summary_time > cfg.TRAIN.SUMMARY_INTERVAL:
                     loss_cls, step, ctc_acc = self.net.train_step_with_summary(sess, train_batch_images,
