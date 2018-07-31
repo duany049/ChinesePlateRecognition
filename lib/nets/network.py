@@ -194,13 +194,12 @@ class Network(object):
                 [tf.float32, tf.float32, tf.float32, tf.int32, tf.float32, tf.float32, tf.float32],
                 name="proposal_target")
 
+            # 注意TRAIN.BATCH_SIZE这个就是256
             rois.set_shape([cfg.TRAIN.BATCH_SIZE, 5])
             roi_scores.set_shape([cfg.TRAIN.BATCH_SIZE])
             # 此labels为faster rcnn原labels,是k+1类别和rpn_label(前景背景)不一样,
             labels.set_shape([cfg.TRAIN.BATCH_SIZE, 1])
             # 此labels是我设置的label,为车牌内容
-            print('dy test ======notify======== rois shape: ', rois.get_shape())
-            print('dy test ======notify======== cls content shape: ', cls_content.get_shape())
             cls_content.set_shape([cfg.TRAIN.BATCH_SIZE, 7])
             bbox_targets.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
             bbox_inside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
@@ -446,8 +445,8 @@ class Network(object):
         self._predict_layers["cls_logits"] = logits
         self._predict_layers['ctc_cls_prob'] = ctc_cls_prob
         self._predict_layers["bbox_pred"] = bbox_pred
-        self.seq_len_value = np.asarray([cfg.MY.MAX_TIMESTEP] * 256, dtype=np.int32)
-        self.seq_len_test_value = np.asarray([cfg.MY.MAX_TIMESTEP] * 256, dtype=np.int32)
+        self.seq_len_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.TRAIN.BATCH_SIZE, dtype=np.int32)
+        self.seq_len_test_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.TRAIN.BATCH_SIZE, dtype=np.int32)
         # return cls_prob, bbox_pred
         return logits, bbox_pred
 
