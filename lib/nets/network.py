@@ -618,8 +618,7 @@ class Network(object):
              self._sparse_cls_content,
              train_op],
             feed_dict=feed_dict)
-        print('dy test dd: {} - cls_content: {}'.format(dd, sparse_cls_content))
-        # self.print_predict(dd, cls_targets)
+        self.print_predict(dd, sparse_cls_content)
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary
 
     def train_step_no_return(self, sess, blobs, train_op):
