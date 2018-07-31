@@ -605,20 +605,20 @@ class Network(object):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
                      self._cls_content: blobs['gt_labels']}
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, ctc_acc, dd, cls_content, _ = sess.run(
+        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, ctc_acc, dd, sparse_cls_content, _ = sess.run(
             [self._losses["rpn_cross_entropy"],
              self._losses['rpn_loss_box'],
              # self._losses['cross_entropy'],
              self._losses['ctc_cost'],
              self._losses['loss_box'],
              self._losses['total_loss'],
+             self._summary_op,
              self._predict_layers['ctc_acc'],
              self._ctc_decoded[0],
-             self._cls_content,
-             self._summary_op,
+             self._sparse_cls_content,
              train_op],
             feed_dict=feed_dict)
-        print('dy test dd: {} - cls_content: {}'.format(dd, cls_content))
+        print('dy test dd: {} - cls_content: {}'.format(dd, sparse_cls_content))
         # self.print_predict(dd, cls_targets)
         return rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary
 
