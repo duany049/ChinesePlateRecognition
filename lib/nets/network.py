@@ -444,8 +444,8 @@ class Network(object):
         self._predict_layers["cls_logits"] = logits
         self._predict_layers['ctc_cls_prob'] = ctc_cls_prob
         self._predict_layers["bbox_pred"] = bbox_pred
-        self.seq_len_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.MY.IMG_BATCH, dtype=np.int32)
-        self.seq_len_test_value = np.asarray([cfg.MY.MAX_TIMESTEP] * cfg.MY.IMG_BATCH, dtype=np.int32)
+        self.seq_len_value = np.asarray([cfg.MY.MAX_TIMESTEP] * 256, dtype=np.int32)
+        self.seq_len_test_value = np.asarray([cfg.MY.MAX_TIMESTEP] * 256, dtype=np.int32)
         # return cls_prob, bbox_pred
         return logits, bbox_pred
 
