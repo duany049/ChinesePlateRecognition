@@ -531,6 +531,19 @@ class Network(object):
                                                                      feed_dict=feed_dict)
         return cls_score, cls_prob, bbox_pred, rois
 
+    def test_image_for_plate(self, sess, image, im_info):
+        feed_dict = {self._image: image,
+                     self._im_info: im_info,
+                     self.seq_len: self.seq_len_test_value}
+
+        cls_score, cls_prob, ctc_decoded, bbox_pred, rois = sess.run([self._predict_layers["cls_logits"],
+                                                                      self._predict_layers['ctc_cls_prob'],
+                                                                      self.ctc_decoded[0],
+                                                                      self._predict_layers['bbox_pred'],
+                                                                      self._predict_layers['rois']],
+                                                                     feed_dict=feed_dict)
+        return self.get_predict(ctc_decoded), bbox_pred, rois
+
     def get_summary(self, sess, blobs):
         feed_dict = {self._image: blobs['data'], self._im_info: blobs['im_info'],
                      self._gt_boxes: blobs['gt_boxes'], self.seq_len: self.seq_len_value,
@@ -592,3 +605,9 @@ class Network(object):
             if hit:
                 true_numer = true_numer + 1
         print("Test Accuracy:", true_numer * 1.0 / len(original_list))
+
+    def get_predict(self, dd):
+        detected_list = decode_sparse_tensor(dd)
+        for idx, number in enumerate(detected_list):
+            detect_number = detected_list[idx]
+        return detect_number
