@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import os
 import utils
-from constant import *
+from data.CarPlate.plate_data.data_constant import *
 from utils import *
 import random
 

@@ -23,7 +23,6 @@ class standard_car_plate(imdb):
         imdb.__init__(self, name)
         self._image_set = image_set
         self._data_path = self._get_default_path()
-        # TODO 使用车牌的label
         self._classes = ('__backgroud__', 'plate')
         # 构成字典{'__background__':'0','plate':'1'}
         self._class_to_ind = dict(zip(self._classes, range(len(self._classes))))

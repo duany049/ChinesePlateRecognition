@@ -5,11 +5,8 @@ from __future__ import print_function
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-from tensorflow.contrib.slim import losses
 from tensorflow.contrib.slim import arg_scope
 import tensorflow.contrib.rnn as rnn
-from tensorflow.python.framework.sparse_tensor import SparseTensor
-from tensorflow.python.framework.sparse_tensor import SparseTensorValue
 
 import numpy as np
 
@@ -205,14 +202,7 @@ class Network(object):
             bbox_inside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
             bbox_outside_weights.set_shape([cfg.TRAIN.BATCH_SIZE, self._num_classes * 4])
 
-            # print('dy test cls content: {}'.format(cls_content))
-            # self._sparse_cls_content = \
-            #     tf.py_func(sparse_tuple_from, [cls_content], [tf.int32], name='sparse_cls_content')
             self._sparse_cls_content = cls_content
-
-            # self._sparse_cls_content = sparse_tuple_from(cls_content, dtype=np.int32)
-            # print('============sparse action=====================')
-            # print('dy test sparse cls content: {}'.format(self._sparse_cls_content))
 
             self._proposal_targets['rois'] = rois
             self._proposal_targets['labels'] = tf.to_int32(labels, name="to_int32")
@@ -271,8 +261,6 @@ class Network(object):
         fc7, conv7 = self._full_connect_layer(pool5, is_training)
         with tf.variable_scope(self._scope, self._scope):
             # region classification
-            # cls_prob, bbox_pred = self._region_classification(fc7, is_training,
-            #                                                   initializer, initializer_bbox)
             cls_logits, bbox_pred = self._region_classification(fc7, conv7, is_training,
                                                                 initializer, initializer_bbox)
 
@@ -314,20 +302,8 @@ class Network(object):
             rpn_loss_box = self._smooth_l1_loss(rpn_bbox_pred, rpn_bbox_targets, rpn_bbox_inside_weights,
                                                 rpn_bbox_outside_weights, sigma=sigma_rpn, dim=[1, 2, 3])
 
-            # RCNN, class loss
-            # cls_score = self._predict_layers["cls_score"]
-            # label = tf.reshape(self._proposal_targets['labels'], [-1])
-            # cross_entropy = tf.reduce_mean(
-            #     tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label))
-
             # 使用ctc loss
             cls_logits = self._predict_layers["cls_logits"]
-
-            # label = tf.reshape(self._proposal_targets['labels'], [-1])
-            # indices, values, dense_shape = tf.py_func(sparse_tuple_from, [label], [tf.int64, tf.int32, tf.int64])
-            # self.cls_targets = tf.SparseTensor(indices, values, dense_shape)
-            # print("is sparse tensor: {} - {} ", isinstance(self.cls_targets, SparseTensorValue),
-            #       isinstance(self.cls_targets, SparseTensor))
 
             idx = tf.where(tf.not_equal(self._sparse_cls_content, 0))
             self._sparse_cls_content = tf.SparseTensor(idx, tf.gather_nd(self._sparse_cls_content, idx),
@@ -346,17 +322,12 @@ class Network(object):
             bbox_outside_weights = self._proposal_targets['bbox_outside_weights']
             loss_box = self._smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
 
-            # self._losses['cross_entropy'] = cross_entropy
             self._losses['ctc_cost'] = ctc_cost
             self._losses['loss_box'] = loss_box
             self._losses['rpn_cross_entropy'] = rpn_cross_entropy
             self._losses['rpn_loss_box'] = rpn_loss_box
 
-            # loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
             loss = ctc_cost + loss_box + rpn_cross_entropy + rpn_loss_box
-            # TODO 不知此regularization是否适用于ctc,古先注释掉
-            # regularization_loss = tf.add_n(tf.losses.get_regularization_losses(), 'regu')
-            # self._losses['total_loss'] = loss + regularization_loss
             self._losses['total_loss'] = loss
 
             self._event_summaries.update(self._losses)
@@ -404,16 +375,6 @@ class Network(object):
         return rois
 
     def _region_classification(self, fc7, conv7, is_training, initializer, initializer_bbox):
-        # cls_score = slim.fully_connected(fc7, self._num_classes,
-        #                                  weights_initializer=initializer,
-        #                                  trainable=is_training,
-        #                                  activation_fn=None, scope='cls_score')
-        # cls_prob = self._softmax_layer(cls_score, "cls_prob")
-        # cls_pred = tf.argmax(cls_score, axis=1, name="cls_pred")
-        # 使用lstm代替softmax进行车牌识别,注意: 这儿训练图片使用cv读取,所以shape是(height, width, channel)
-        # TODO 1,先使用fc7来试试效果,无论效果如何,都要用pool5直接试试,记得转换shape
-        # TODO 2,NUM_HIDDEN 256和128都试试, NUM_LAYERS 1和2都试试
-
         # size为batch_size的以为数组,元素是每个待预测序列的长度
         self.seq_len = tf.placeholder(tf.int32, [None])
 
@@ -439,9 +400,6 @@ class Network(object):
                                          trainable=is_training,
                                          activation_fn=None, scope='bbox_pred')
 
-        # self._predict_layers["cls_score"] = cls_score
-        # self._predict_layers["cls_pred"] = cls_pred
-        # self._predict_layers["cls_prob"] = cls_prob
         self._predict_layers["cls_logits"] = logits
         self._predict_layers['ctc_cls_prob'] = ctc_cls_prob
         self._predict_layers["bbox_pred"] = bbox_pred
@@ -571,12 +529,6 @@ class Network(object):
                                                                       self._predict_layers['bbox_pred'],
                                                                       self._predict_layers['rois']],
                                                                      feed_dict=feed_dict)
-        # print('dy test ctc_decoded shape: {} - value: {} - target: {}'
-        #       .format(np.array(ctc_decoded).shape, ctc_decoded, cls_targets))
-        print('==============cls targets====================')
-        # decode_sparse_tensor(cls_targets)
-        print('==============ctc decoded====================')
-        decode_sparse_tensor(ctc_decoded)
         return cls_score, cls_prob, bbox_pred, rois
 
     def get_summary(self, sess, blobs):
@@ -608,7 +560,6 @@ class Network(object):
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, loss, summary, ctc_acc, dd, sparse_cls_content, _ = sess.run(
             [self._losses["rpn_cross_entropy"],
              self._losses['rpn_loss_box'],
-             # self._losses['cross_entropy'],
              self._losses['ctc_cost'],
              self._losses['loss_box'],
              self._losses['total_loss'],
