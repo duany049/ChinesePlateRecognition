@@ -17,7 +17,7 @@ from __future__ import print_function
 
 import _init_paths
 from model.config import cfg
-from model.test import im_detect
+from model.test import im_detect, im_detect_for_plate
 from model.nms_wrapper import nms
 
 from utils.timer import Timer
@@ -36,22 +36,25 @@ CLASSES = ('__background__',
            'cow', 'diningtable', 'dog', 'horse',
            'motorbike', 'person', 'pottedplant',
            'sheep', 'sofa', 'train', 'tvmonitor')
+PLATE_CLASSES = ('background', 'plate')
 
 NETS = {'vgg16': ('vgg16_faster_rcnn_iter_5000.ckpt',),'res101': ('res101_faster_rcnn_iter_110000.ckpt',)}
-DATASETS= {'pascal_voc': ('voc_2007_trainval',),'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',)}
+DATASETS= {'pascal_voc': ('voc_2007_trainval',),
+           'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',),
+           'standard_car_plate': ('standard_car_plate_train',)}
 
 def vis_detections(im, class_name, dets, thresh=0.5):
     """Draw detected bounding boxes."""
-    inds = np.where(dets[:, -1] >= thresh)[0]
-    if len(inds) == 0:
-        return
+    # inds = np.where(dets[:, -1] >= thresh)[0]
+    # if len(inds) == 0:
+    #     return
 
     im = im[:, :, (2, 1, 0)]
     fig, ax = plt.subplots(figsize=(12, 12))
     ax.imshow(im, aspect='equal')
-    for i in inds:
+    for i in range(len(dets)):
         bbox = dets[i, :4]
-        score = dets[i, -1]
+        # score = dets[i, -1]
 
         ax.add_patch(
             plt.Rectangle((bbox[0], bbox[1]),
@@ -60,7 +63,7 @@ def vis_detections(im, class_name, dets, thresh=0.5):
                           edgecolor='red', linewidth=3.5)
             )
         ax.text(bbox[0], bbox[1] - 2,
-                '{:s} {:.3f}'.format(class_name, score),
+                '{:s}'.format(class_name),
                 bbox=dict(facecolor='blue', alpha=0.5),
                 fontsize=14, color='white')
 
@@ -98,6 +101,34 @@ def demo(sess, net, image_name):
         keep = nms(dets, NMS_THRESH)
         dets = dets[keep, :]
         vis_detections(im, cls, dets, thresh=CONF_THRESH)
+
+def demo_for_plate(sess, net, image_name):
+    """Detect object classes in an image using pre-computed object proposals."""
+
+    # Load the demo image
+    im_file = os.path.join(cfg.DATA_DIR, 'demo', image_name)
+    im = cv2.imread(im_file)
+
+    # Detect all object classes and regress object bounds
+    timer = Timer()
+    timer.tic()
+    labels, boxes = im_detect_for_plate(sess, net, im)
+    timer.toc()
+    print('Detection took {:.3f}s for {:d} object proposals'.format(timer.total_time, boxes.shape[0]))
+
+    # Visualize detections for each class
+    CONF_THRESH = 0.8
+    NMS_THRESH = 0.3
+    for cls_ind, cls in enumerate(CLASSES[1:]):
+        cls_ind += 1 # because we skipped background
+        cls_boxes = boxes[:, 4*cls_ind:4*(cls_ind + 1)]
+        # cls_scores = scores[:, cls_ind]
+        # dets = np.hstack((cls_boxes,
+        #                   cls_scores[:, np.newaxis])).astype(np.float32)
+        # keep = nms(dets, NMS_THRESH)
+        # dets = dets[keep, :]
+        vis_detections(im, cls, cls_boxes, thresh=CONF_THRESH)
+    print('image: {} - labels: {}'.format(image_name, labels))
 
 def parse_args():
     """Parse input arguments."""
@@ -142,7 +173,7 @@ if __name__ == '__main__':
         net = Resnetv1(num_layers=101)
     else:
         raise NotImplementedError
-    net.create_architecture("TEST", 21,
+    net.create_architecture("TEST", len(PLATE_CLASSES),
                           tag='default', anchor_scales=[8, 16, 32])
 
     saver = tf.train.Saver()
@@ -152,11 +183,14 @@ if __name__ == '__main__':
     # print('Loaded network {:s}'.format(tfmodel))
     print('Loaded network {:s}'.format(latest_model))
 
-    im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
-                '001763.jpg', '004545.jpg']
+    # im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
+    #             '001763.jpg', '004545.jpg']
+    im_names = ['000002.jpg', '000007.jpg', '000130.jpg',
+                '000143.jpg', '000152.jpg', '000153.jpg']
     for im_name in im_names:
         print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
         print('Demo for data/demo/{}'.format(im_name))
-        demo(sess, net, im_name)
+        # demo(sess, net, im_name)
+        demo_for_plate(sess, net, im_name)
 
     plt.show()

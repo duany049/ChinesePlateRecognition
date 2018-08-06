@@ -320,6 +320,7 @@ class Network(object):
             ctc_acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), self._cls_targets))
             self._predict_layers['ctc_acc'] = ctc_acc
             self._predict_layers['decoded'] = decoded
+            self._predict_layers['ctc_prob'] = log_prob
 
             # RCNN, bbox loss
             # bbox_pred = self._predict_layers['bbox_pred']
@@ -588,13 +589,14 @@ class Network(object):
     def train_step_with_summary(self, sess, data, cls_targets, train_op, global_step):
         feed_dict = {self._data: data, self._cls_targets: cls_targets,
                      self.seq_len: self.seq_len_value}
-        loss_cls, _, step, ctc_acc, dd = sess.run([self._losses['ctc_cost'],
+        loss_cls, _, step, ctc_acc, dd, ctc_prob = sess.run([self._losses['ctc_cost'],
                                                    # self._summary_op,
                                                    train_op,
                                                    global_step,
                                                    self._predict_layers['ctc_acc'],
-                                                   self._predict_layers['decoded'][0]],
-                                                  feed_dict=feed_dict)
+                                                   self._predict_layers['decoded'][0],
+                                                   self._predict_layers['ctc_prob']],
+                                                   feed_dict=feed_dict)
         self.print_predict(dd, cls_targets)
         return loss_cls, step, ctc_acc
 

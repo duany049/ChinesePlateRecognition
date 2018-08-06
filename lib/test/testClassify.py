@@ -127,7 +127,7 @@ class SolverWrapper(object):
                 cls_targets = sparse_tuple_from(train_batch_labels)
 
                 now = time.time()
-                if now - last_summary_time > cfg.TRAIN.SUMMARY_INTERVAL:
+                if now - last_summary_time > 5:
                     loss_cls, step, ctc_acc = self.net.train_step_with_summary(sess, train_batch_images,
                                                                                cls_targets, train_op,
                                                                                global_step)
@@ -207,7 +207,6 @@ class SolverWrapper(object):
             coord.request_stop()
             coord.join(threads)
 
-
     def initialize(self, sess):
         print('Loading initial model weights from {:s}'.format(self.pretrained_model))
         variables = tf.global_variables()
@@ -225,7 +224,6 @@ class SolverWrapper(object):
         # fully connected weights
         self.net.transform_variables(sess, self.pretrained_model)
         print('Transform.')
-
 
     def construct_graph(self, sess):
         with sess.graph.as_default():
@@ -262,7 +260,6 @@ class SolverWrapper(object):
             self.valwriter = tf.summary.FileWriter(self.tbvaldir)
 
             return lr, train_op, global_step
-
 
     def get_variables_in_checkpoint_file(self, file_name):
         try:
